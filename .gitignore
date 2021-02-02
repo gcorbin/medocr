@@ -4,10 +4,11 @@
 
 ### allow files of this type in all subdirectories
 !/**/.gitignore
-!/**/.py
+!/**/*.py
 
 ### allow these files only in the current directory
 !Readme.md
+!medocr.yml
 
 ## explicitly exclude 
 
