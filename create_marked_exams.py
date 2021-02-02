@@ -17,6 +17,16 @@ def validate_pdf_file_name(file_name):
     name, ext = os.path.splitext(file_name)
     if not ext == '.pdf': 
         raise ValueError('File {0} does not have the .pdf extension'.format(file_name))
+    
+    
+    
+def clear_pdfs(folder):
+        logger.debug('Removing .pdf files in folder %s. ', folder)
+        files = os.listdir(folder)
+        for item in files:
+            item_name, item_ext = os.path.splitext(item)
+            if item_ext == '.pdf':
+                os.remove(os.path.join(folder, item))
 
 
 if __name__ == '__main__':
@@ -38,10 +48,11 @@ if __name__ == '__main__':
         if args.output is None:
             args.output = exam_name
         os_utils.mkdir_if_nonexistent(args.output)   
+        clear_pdfs(args.output)
                 
         
         with open(args.exam, 'rb') as exam_file: 
-            with  open(args.marks, 'rb') as marks_file:
+            with open(args.marks, 'rb') as marks_file:
                 exam_pdf_reader = PyPDF2.PdfFileReader(exam_file)
                 marks_pdf_reader = PyPDF2.PdfFileReader(marks_file)
                 
