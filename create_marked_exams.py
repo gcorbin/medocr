@@ -6,9 +6,9 @@ import logging
 import sys
 
 from defaultlogger import set_default_logging_behavior
-logger = logging.getLogger('medocr.create_marked_exams')
-
 import os_utils
+
+logger = logging.getLogger('medocr.create_marked_exams')
 
 
 def validate_pdf_file_name(file_name):
@@ -18,8 +18,7 @@ def validate_pdf_file_name(file_name):
     if not ext == '.pdf': 
         raise ValueError('File {0} does not have the .pdf extension'.format(file_name))
     
-    
-    
+
 def clear_pdfs(folder):
         logger.debug('Removing .pdf files in folder %s. ', folder)
         files = os.listdir(folder)
@@ -49,8 +48,7 @@ if __name__ == '__main__':
             args.output = exam_name
         os_utils.mkdir_if_nonexistent(args.output)   
         clear_pdfs(args.output)
-                
-        
+
         with open(args.exam, 'rb') as exam_file: 
             with open(args.marks, 'rb') as marks_file:
                 exam_pdf_reader = PyPDF2.PdfFileReader(exam_file)
@@ -68,7 +66,6 @@ if __name__ == '__main__':
                     with open(os.path.join(args.output, out_file_name), 'wb') as out_file:
                         out_writer.write(out_file)
 
-        
     except Exception as ex:
         logger.critical('', exc_info=ex)
         sys.exit(1)
