@@ -38,10 +38,13 @@ if __name__ == '__main__':
     try:
         if args.mode == 'index':
             os_utils.mkdir_if_nonexistent('work')
-            images = convert_from_path(args.file, dpi=200, fmt='jpg', grayscale=True, output_folder='work')
+            dpi = 200
+            images = convert_from_path(args.file, dpi=dpi, fmt='jpg', grayscale=True, output_folder='work')
             for img in images:
-                cropped = img.crop((0, np.floor(0.93*img.height), img.width, img.height))
-                #cropped.show()
+                inch_per_cm = 0.3937008
+                footer_height = np.floor(1.5 * inch_per_cm * dpi)
+                cropped = img.crop((0, img.height-footer_height, img.width, img.height))
+                cropped.show()
                 img_string = pytesseract.image_to_string(cropped)
                 logger.info(img_string)
             '''with tempfile.TemporaryDirectory() as temp_path:
