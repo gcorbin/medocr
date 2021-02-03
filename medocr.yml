@@ -4,3 +4,7 @@ channels:
 dependencies:
   - python=3.6   
   - PyPDF2
+  - tesseract
+  - pytesseract
+  - pdf2image
+  - opencv
