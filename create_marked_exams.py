@@ -5,9 +5,8 @@ import argparse
 import logging
 import sys
 
-from defaultlogger import set_default_logging_behavior
 import os_utils
-
+from defaultlogger import set_default_logging_behavior
 logger = logging.getLogger('medocr.create_marked_exams')
 
 
