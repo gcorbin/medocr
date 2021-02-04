@@ -29,7 +29,7 @@ class PageId:
     @staticmethod
     def tokenize_ocr_string(data):
         ocr_string = ''.join(data.split()).upper()
-        return ocr_string.split('-')
+        return ocr_string.split('/')
 
     def init_from_ocr_string(self, data):
         ocr_tokens = PageId.tokenize_ocr_string(data)

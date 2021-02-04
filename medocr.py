@@ -99,7 +99,8 @@ if __name__ == '__main__':
                 footer_height = np.floor(2.5 * inch_per_cm * dpi)
                 cropped = img.crop((0, img.height-footer_height, img.width, img.height))
                 #cropped.show()
-                img_string = pytesseract.image_to_string(cropped)
+                tesseract_options = r'-c tessedit_char_blacklist=O@~'
+                img_string = pytesseract.image_to_string(cropped, config=tesseract_options)
                 page_id = PageId(img_string)
                 success = page_id.is_valid()
                 logger.info('Page %d,  Success : %s, %s, %s', page_num, success, page_id, PageId.tokenize_ocr_string(img_string))
