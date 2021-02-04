@@ -15,54 +15,22 @@ from defaultlogger import set_default_logging_behavior
 logger = logging.getLogger('medocr.main')
 
 
-def is_valid_page_id(page_id):
-    return page_id['KLAUSUR'] is not None and page_id['AUFGABE'] is not None and page_id['SEITE'] is not None
-
-
-'''def extract_page_id(ocr_string):
-    # remove all whitespace
-    ocr_string = ''.join(ocr_string.split()).upper()
-    ocr_tokens = ocr_string.split('-')
-
-    page_id = {'KLAUSUR':None, 'AUFGABE':None, 'SEITE':None, 'TOKENS':ocr_tokens}
-    for token in ocr_tokens:
-        if token.startswith('KLAUSUR'):
-            subtokens = token.split('KLAUSUR')
-            number = subtokens[1]
-            if number.isdigit():
-                page_id['KLAUSUR'] = int(number)
-        elif token.startswith('AUFGABE'):
-            subtokens = token.split('AUFGABE')
-            number = subtokens[1]
-            if number.isdigit():
-                page_id['AUFGABE'] = int(number)
-        elif token.startswith('DECKBLATT'):
-            page_id['AUFGABE'] = 0
-        elif token.startswith('SEITE'):
-            subtokens = token.split('SEITE')
-            page_id['SEITE'] = subtokens[1]
-        elif token.startswith('EXTRASEITE'):
-            page_id['SEITE'] = 0
-        elif token == '':
-            pass
-        else:
-            pass
-
-    return page_id'''
-
-
 class PageId:
     def __init__(self, data=None):
+        self.exam = None
+        self.task = None
+        self.page = None
         if data is not None:
-            if len(data) != 3:
-                raise ValueError('A PageId object needs 3 values to construct')
-            self.exam = data[0]
-            self.task = data[1]
-            self.page = data[2]
-        else:
-            self.exam = None
-            self.task = None
-            self.page = None
+            if isinstance(data, str):
+                self.init_from_ocr_string(data)
+            elif isinstance(data, tuple):
+                if len(data) != 3:
+                    raise ValueError('A PageId object needs 3 values to be constructed.')
+                self.exam = data[0]
+                self.task = data[1]
+                self.page = data[2]
+            else:
+                raise TypeError('A PageId needs a tuple or a string to be constructed.')
 
     def tuple(self):
         return self.exam, self.task, self.page
@@ -75,37 +43,36 @@ class PageId:
     def __str__(self):
         return 'Klausur {}, Aufgabe {}, Seite {}'.format(self.exam, self.task, self.page)
 
+    @staticmethod
+    def tokenize_ocr_string(data):
+        ocr_string = ''.join(data.split()).upper()
+        return ocr_string.split('-')
 
-def extract_page_id(ocr_string):
-    # remove all whitespace
-    ocr_string = ''.join(ocr_string.split()).upper()
-    ocr_tokens = ocr_string.split('-')
+    def init_from_ocr_string(self, data):
+        ocr_tokens = PageId.tokenize_ocr_string(data)
 
-    page_id = PageId()
-    for token in ocr_tokens:
-        if token.startswith('KLAUSUR'):
-            subtokens = token.split('KLAUSUR')
-            number = subtokens[1]
-            if number.isdigit():
-                page_id.exam = int(number)
-        elif token.startswith('AUFGABE'):
-            subtokens = token.split('AUFGABE')
-            number = subtokens[1]
-            if number.isdigit():
-                page_id.task = int(number)
-        elif token.startswith('DECKBLATT'):
-            page_id.task = 0
-        elif token.startswith('SEITE'):
-            subtokens = token.split('SEITE')
-            page_id.page = subtokens[1]
-        elif token.startswith('EXTRASEITE'):
-            page_id.page = 0
-        elif token == '':
-            pass
-        else:
-            pass
-
-    return page_id, ocr_tokens
+        for token in ocr_tokens:
+            if token.startswith('KLAUSUR'):
+                subtokens = token.split('KLAUSUR')
+                number = subtokens[1]
+                if number.isdigit():
+                    self.exam = int(number)
+            elif token.startswith('AUFGABE'):
+                subtokens = token.split('AUFGABE')
+                number = subtokens[1]
+                if number.isdigit():
+                    self.task = int(number)
+            elif token.startswith('DECKBLATT'):
+                self.task = 0
+            elif token.startswith('SEITE'):
+                subtokens = token.split('SEITE')
+                self.page = subtokens[1]
+            elif token.startswith('EXTRASEITE'):
+                self.page = 0
+            elif token == '':
+                pass
+            else:
+                pass
 
 
 if __name__ == '__main__':
@@ -192,11 +159,9 @@ if __name__ == '__main__':
                 cropped = img.crop((0, img.height-footer_height, img.width, img.height))
                 #cropped.show()
                 img_string = pytesseract.image_to_string(cropped)
-                logger.info(img_string)
-
-                page_id, ocr_tokens = extract_page_id(img_string)
+                page_id = PageId(img_string)
                 success = page_id.is_valid()
-                logger.info('Page %d,  Success : %s, %s, %s', page_num, success, page_id, ocr_tokens)
+                logger.info('Page %d,  Success : %s, %s, %s', page_num, success, page_id, PageId.tokenize_ocr_string(img_string))
 
                 index[file_name][page_num] = page_id.tuple()
             json_utils.write_json(index, index_file_name)
