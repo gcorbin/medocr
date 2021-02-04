@@ -16,11 +16,46 @@ from defaultlogger import set_default_logging_behavior
 from pageid import PageId
 logger = logging.getLogger('medocr.main')
 
+
+def load_index(name, create_if_new=False):
+    if os_utils.is_composite(name):
+        raise ValueError('No paths are allowed as index names')
+
+    index_file_name = os.path.join(name, 'index')
+
+    if create_if_new and not os.path.isdir(name):
+        logger.info('Creating the new index %s', name)
+        os.mkdir(name)
+        json_utils.write_json(dict(), index_file_name)
+
+    if not os.path.isdir(name):
+        raise NotADirectoryError('The index directory %s does not exist')
+    if not os.path.isfile(index_file_name):
+        raise OSError('The directory %s exists, but it is not an index directory.')
+
+    logger.info('Working on index %s', name)
+    index = json_utils.read_json(index_file_name)
+    return index
+
+
+def write_index(name, index):
+    if os_utils.is_composite(name):
+        raise ValueError('No paths are allowed as index names')
+
+    index_file_name = os.path.join(name, 'index')
+    if not os.path.isdir(name):
+        raise NotADirectoryError('The index directory %s does not exist')
+    if not os.path.isfile(index_file_name):
+        raise OSError('The directory %s exists, but it is not an index directory.')
+    json_utils.write_json(index, index_file_name)
+
+
 if __name__ == '__main__':
     set_default_logging_behavior(logfile='medocr')
 
     logger.debug('Parsing arguments')
     parent_parser = argparse.ArgumentParser()
+    parent_parser.add_argument('index', type=str, help='The index to work on.')
 
     main_parser = argparse.ArgumentParser(description='Index pdf files by OCR marks and rearrange the pages accordingly')
     subparsers = main_parser.add_subparsers(dest='mode',
@@ -33,26 +68,13 @@ if __name__ == '__main__':
     merge_parser = subparsers.add_parser('merge', parents=[parent_parser], conflict_handler='resolve',
                                          help='Merge back into the individual exams')
 
-    index_parser.add_argument('index', type=str, help='The index to work on. If it does not exist, create it.')
     index_parser.add_argument('--file', '-f', type=str, default=None, help='.pdf file containing scanned exams')
 
     args = main_parser.parse_args()
 
     try:
         if args.mode == 'index':
-            index_file_name = os.path.join(args.index, 'index')
-
-            if not os.path.isdir(args.index):
-                logger.info('Creating the new index %s', args.index)
-                os.mkdir(args.index)
-                json_utils.write_json(dict(), index_file_name)
-
-            if not os.path.isfile(index_file_name):
-                logger.critical('The directory %s exists, but it is not an index directory.')
-                sys.exit(1)
-
-            logger.info('Working on index %s', args.index)
-            index = json_utils.read_json(index_file_name)
+            index = load_index(args.index, create_if_new=True)
 
             if args.file is None:
                 logger.info('No file given, doing nothing.')
@@ -106,7 +128,7 @@ if __name__ == '__main__':
                 logger.info('Page %d,  Success : %s, %s, %s', page_num, success, page_id, PageId.tokenize_ocr_string(img_string))
 
                 index[file_name][page_num] = page_id.tuple()
-            json_utils.write_json(index, index_file_name)
+            write_index(args.index, index)
 
             '''with tempfile.TemporaryDirectory() as temp_path:
                 images_from_path = convert_from_path(args.file, output_folder=temp_path)'''
