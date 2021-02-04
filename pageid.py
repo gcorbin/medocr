@@ -6,7 +6,7 @@ class PageId:
         if data is not None:
             if isinstance(data, str):
                 self.init_from_ocr_string(data)
-            elif isinstance(data, tuple):
+            elif isinstance(data, tuple) or isinstance(data, list):
                 if len(data) != 3:
                     raise ValueError('A PageId object needs 3 values to be constructed.')
                 self.exam = data[0]

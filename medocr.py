@@ -8,6 +8,8 @@ from PIL import Image
 import pytesseract
 import numpy as np
 import shutil
+import PyPDF2
+import copy
 
 import json_utils
 import os_utils
@@ -29,9 +31,9 @@ def load_index(name, create_if_new=False):
         json_utils.write_json(dict(), index_file_name)
 
     if not os.path.isdir(name):
-        raise NotADirectoryError('The index directory %s does not exist')
+        raise NotADirectoryError('The index directory {} does not exist'.format(name))
     if not os.path.isfile(index_file_name):
-        raise OSError('The directory %s exists, but it is not an index directory.')
+        raise OSError('The directory {} exists, but it is not an index directory.'.format(name))
 
     logger.info('Working on index %s', name)
     index = json_utils.read_json(index_file_name)
@@ -44,10 +46,26 @@ def write_index(name, index):
 
     index_file_name = os.path.join(name, 'index')
     if not os.path.isdir(name):
-        raise NotADirectoryError('The index directory %s does not exist')
+        raise NotADirectoryError('The index directory {} does not exist'.format(name))
     if not os.path.isfile(index_file_name):
-        raise OSError('The directory %s exists, but it is not an index directory.')
+        raise OSError('The directory {} exists, but it is not an index directory.'.format(name))
     json_utils.write_json(index, index_file_name)
+
+
+def find_free_path(raw_path):
+    path, prefix = os.path.split(raw_path)
+    if path == '':
+        path = '.'
+    if not os.path.isdir(path):
+        raise NotADirectoryError('The path {} does not exist'.format(path))
+
+    full_path = os.path.join(path, prefix)
+    number = 0
+    while os.path.isdir(full_path):
+        number += 1
+        name = '{}_{:03d}'.format(prefix, number)
+        full_path = os.path.join(path, name)
+    return full_path
 
 
 if __name__ == '__main__':
@@ -69,6 +87,9 @@ if __name__ == '__main__':
                                          help='Merge back into the individual exams')
 
     index_parser.add_argument('--file', '-f', type=str, default=None, help='.pdf file containing scanned exams')
+
+    split_parser.add_argument('to',  type=str, help='folder containing the rearranged files')
+    split_parser.add_argument('--prefix', type=str, default=None, help='prefix for files')
 
     args = main_parser.parse_args()
 
@@ -134,7 +155,44 @@ if __name__ == '__main__':
                 images_from_path = convert_from_path(args.file, output_folder=temp_path)'''
 
         elif args.mode == 'split':
-            logger.warning('The subcommand "split" is not implemented yet. Doing nothing')
+            index = load_index(args.index, create_if_new=False)
+
+            dest = find_free_path(args.to)
+            os_utils.mkdir_if_nonexistent(dest)
+
+            if args.prefix is None:
+                args.prefix = args.index
+
+            # see which task numbers are in the index
+            '''task_ids = set()
+            for file_name, id_list in index.iteritems():
+                for pid in id_list:
+                    task_ids.add(pid.task)'''
+
+            # gather all pages for each task number
+            pages_by_task_id = dict()
+            for file_name, id_list in index.items():
+                #logger.info('file name %s, id_list %s', file_name, id_list)
+                for file_page, pid in enumerate(id_list):
+                    #logger.info('file page %s, pid %s', file_page, pid)
+                    page_id = PageId(pid)
+                    if page_id.task not in pages_by_task_id:
+                        pages_by_task_id[page_id.task] = []
+                    pages_by_task_id[page_id.task].append((file_name, file_page))
+
+            print (pages_by_task_id)
+            for tid, page_list in pages_by_task_id.items():
+                out_writer = PyPDF2.PdfFileWriter()
+                for page_addr in page_list:
+                    file_name = page_addr[0]
+                    file_page = page_addr[1]
+                    #pid = page_addr[2]
+                    with open(os.path.join(args.index, file_name), 'rb') as in_file:
+                        pdf_reader = PyPDF2.PdfFileReader(in_file)
+                        pdf_page = pdf_reader.getPage(file_page)
+                        out_writer.addPage(pdf_page)
+                        with open(os.path.join(dest, '{}_task{}.pdf'.format(args.prefix, tid)), 'wb') as out_file:
+                            out_writer.write(out_file)
         elif args.mode == 'merge':
             logger.warning('The subcommand "merge" is not implemented yet. Doing nothing')
         else:
