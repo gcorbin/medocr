@@ -10,23 +10,6 @@ from defaultlogger import set_default_logging_behavior
 logger = logging.getLogger('medocr.create_marked_exams')
 
 
-def validate_pdf_file_name(file_name):
-    if not os.path.isfile(file_name):
-        raise IOError('File {0} not found'.format(file_name))
-    name, ext = os.path.splitext(file_name)
-    if not ext == '.pdf': 
-        raise ValueError('File {0} does not have the .pdf extension'.format(file_name))
-    
-
-def clear_pdfs(folder):
-        logger.debug('Removing .pdf files in folder %s. ', folder)
-        files = os.listdir(folder)
-        for item in files:
-            item_name, item_ext = os.path.splitext(item)
-            if item_ext == '.pdf':
-                os.remove(os.path.join(folder, item))
-
-
 if __name__ == '__main__':
     set_default_logging_behavior(logfile='create_marked_exams')
     
@@ -38,15 +21,15 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     try: 
-        validate_pdf_file_name(args.exam)
-        validate_pdf_file_name(args.marks)
+        os_utils.validate_file_name(args.exam, 'pdf')
+        os_utils.validate_file_name(args.marks, 'pdf')
         
         exam_name, ext = os.path.splitext(args.exam)
         
         if args.output is None:
             args.output = exam_name
         os_utils.mkdir_if_nonexistent(args.output)   
-        clear_pdfs(args.output)
+        os_utils.clear_files_with_extension(args.output, 'pdf')
 
         with open(args.exam, 'rb') as exam_file: 
             with open(args.marks, 'rb') as marks_file:

@@ -46,3 +46,21 @@ class ChangedDirectory:
     
     def current(self):
         return os.getcwd()
+
+
+def validate_file_name(file_name, extension=None):
+    if not os.path.isfile(file_name):
+        raise IOError('File {0} not found'.format(file_name))
+    if extension is not None:
+        name, ext = os.path.splitext(file_name)
+        if not ext == '.'+extension:
+            raise ValueError('File {0} does not have the .{1} extension'.format(file_name, extension))
+
+
+def clear_files_with_extension(folder, extension):
+    logger.debug('Removing .%s files in folder %s. ', extension, folder)
+    files = os.listdir(folder)
+    for item in files:
+        item_name, item_ext = os.path.splitext(item)
+        if item_ext == '.'+extension:
+            os.remove(os.path.join(folder, item))
