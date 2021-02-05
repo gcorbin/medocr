@@ -16,6 +16,7 @@ import os_utils
 from defaultlogger import set_default_logging_behavior
 
 from pageid import PageId
+from collection import Collection
 logger = logging.getLogger('medocr.main')
 
 
@@ -95,7 +96,8 @@ if __name__ == '__main__':
 
     try:
         if args.mode == 'index':
-            index = load_index(args.index, create_if_new=True)
+            # index = load_index(args.index, create_if_new=True)
+            collection = Collection.make_collection(args.index)
 
             if args.file is None:
                 logger.info('No file given, doing nothing.')
@@ -107,9 +109,9 @@ if __name__ == '__main__':
             if file_name in index:
                 logger.info('File %s already exists in the index')
                 ans = input('File %s already exists in the index. Select one of the following:\n'
-                      '\t(clear) : Overwrite the current file\n'
-                      '\t(resume) : Resume indexing the current file\n'
-                      '\t(skip) : Do nothing for this file\n')
+                            '\t(clear) : Overwrite the current file\n'
+                            '\t(resume) : Resume indexing the current file\n'
+                            '\t(skip) : Do nothing for this file\n')
                 if ans == 'clear':
                     index[file_name] = []
                     os.remove(file_in_index)
@@ -126,7 +128,6 @@ if __name__ == '__main__':
                 index[file_name] = []
                 shutil.copyfile(args.file, file_in_index)
 
-
             work_folder = os.path.join(args.index, 'work')
             os_utils.mkdir_if_nonexistent(work_folder)
             os_utils.clear_files_with_extension(work_folder, 'jpg')
@@ -136,12 +137,12 @@ if __name__ == '__main__':
             logger.debug('finished converting')
 
             index[file_name] = [None for i in range(len(images))]
-            #TODO: clear the work directory or use a temporary
+            # TODO: clear the work directory or use a temporary
             for page_num, img in enumerate(images):
                 inch_per_cm = 0.3937008
                 footer_height = np.floor(2.5 * inch_per_cm * dpi)
                 cropped = img.crop((0, img.height-footer_height, img.width, img.height))
-                #cropped.show()
+                # cropped.show()
                 tesseract_options = r'-c tessedit_char_blacklist=O@~'
                 img_string = pytesseract.image_to_string(cropped, config=tesseract_options)
                 page_id = PageId(img_string)
@@ -163,39 +164,39 @@ if __name__ == '__main__':
             if args.prefix is None:
                 args.prefix = args.index
 
-            # see which task numbers are in the index
-            '''task_ids = set()
-            for file_name, id_list in index.iteritems():
-                for pid in id_list:
-                    task_ids.add(pid.task)'''
-
             # gather all pages for each task number
             pages_by_task_id = dict()
             for file_name, id_list in index.items():
-                #logger.info('file name %s, id_list %s', file_name, id_list)
+                # logger.info('file name %s, id_list %s', file_name, id_list)
                 for file_page, pid in enumerate(id_list):
-                    #logger.info('file page %s, pid %s', file_page, pid)
+                    # logger.info('file page %s, pid %s', file_page, pid)
                     page_id = PageId(pid)
                     if page_id.task not in pages_by_task_id:
                         pages_by_task_id[page_id.task] = []
-                    pages_by_task_id[page_id.task].append((file_name, file_page))
+                    pages_by_task_id[page_id.task].append((file_name, file_page, page_id))
 
-            print (pages_by_task_id)
+            # print (pages_by_task_id)
 
+            new_index = dict()
             for tid, page_list in pages_by_task_id.items():
+                file_dest = '{}_task{}.pdf'.format(args.prefix, tid)
+                new_index[file_dest] = []
+
                 open_infiles = dict()
                 merger = PyPDF2.PdfFileMerger()
                 for page_addr in page_list:
                     file_name = page_addr[0]
                     file_page = page_addr[1]
-                    #pid = page_addr[2]
+                    page_id = page_addr[2]
                     in_file_name = os.path.join(args.index, file_name)
                     if in_file_name not in open_infiles:
                         open_infiles[in_file_name] = open(in_file_name, 'rb')
                     merger.append(open_infiles[in_file_name], pages=(file_page, file_page+1))
-                with open(os.path.join(dest, '{}_task{}.pdf'.format(args.prefix, tid)), 'wb') as out_file:
+                    new_index[file_dest].append(page_id.tuple())
+                with open(os.path.join(dest, file_dest), 'wb') as out_file:
                     merger.write(out_file)
                 merger.close()
+                json_utils.write_json(new_index, os.path.join(dest, 'index'))
         elif args.mode == 'merge':
             logger.warning('The subcommand "merge" is not implemented yet. Doing nothing')
         else:
