@@ -181,18 +181,21 @@ if __name__ == '__main__':
                     pages_by_task_id[page_id.task].append((file_name, file_page))
 
             print (pages_by_task_id)
+
             for tid, page_list in pages_by_task_id.items():
-                out_writer = PyPDF2.PdfFileWriter()
+                open_infiles = dict()
+                merger = PyPDF2.PdfFileMerger()
                 for page_addr in page_list:
                     file_name = page_addr[0]
                     file_page = page_addr[1]
                     #pid = page_addr[2]
-                    with open(os.path.join(args.index, file_name), 'rb') as in_file:
-                        pdf_reader = PyPDF2.PdfFileReader(in_file)
-                        pdf_page = pdf_reader.getPage(file_page)
-                        out_writer.addPage(pdf_page)
-                        with open(os.path.join(dest, '{}_task{}.pdf'.format(args.prefix, tid)), 'wb') as out_file:
-                            out_writer.write(out_file)
+                    in_file_name = os.path.join(args.index, file_name)
+                    if in_file_name not in open_infiles:
+                        open_infiles[in_file_name] = open(in_file_name, 'rb')
+                    merger.append(open_infiles[in_file_name], pages=(file_page, file_page+1))
+                with open(os.path.join(dest, '{}_task{}.pdf'.format(args.prefix, tid)), 'wb') as out_file:
+                    merger.write(out_file)
+                merger.close()
         elif args.mode == 'merge':
             logger.warning('The subcommand "merge" is not implemented yet. Doing nothing')
         else:
