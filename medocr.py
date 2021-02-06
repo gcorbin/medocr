@@ -10,6 +10,7 @@ import numpy as np
 import shutil
 import PyPDF2
 import copy
+import cv2
 
 import json_utils
 import os_utils
@@ -69,6 +70,37 @@ def find_free_path(raw_path):
     return full_path
 
 
+# get grayscale image
+def get_grayscale(image):
+    return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+# noise removal
+def remove_noise(image):
+    return cv2.medianBlur(image, 5)
+
+# thresholding
+def thresholding(image):
+    return cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+
+#skew correction
+def deskew(image):
+    coords = np.column_stack(np.where(image < 255))
+    center, dimensions, angle= cv2.minAreaRect(coords)
+    if angle < -45:
+        angle = -(90 + angle)
+    else:
+        angle = -angle
+    logger.info('rect center {}, dimensions {},  angle = {}'.format(center, dimensions, angle))
+    (h, w) = image.shape[:2]
+    im_center = (w // 2, h // 2)
+    M = cv2.getRotationMatrix2D(im_center, angle, 1.0)
+    rotated = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+    crop_h = slice(int(np.floor(center[0]-dimensions[0]/2.)), int(np.ceil(center[0]+dimensions[0]/2.)))
+    crop_w = slice(int(np.floor(center[1] - dimensions[1] / 2.)), int(np.ceil(center[1] + dimensions[1] / 2.)))
+    cropped = rotated[crop_h, crop_w]
+    return cropped
+
+
 if __name__ == '__main__':
     set_default_logging_behavior(logfile='medocr')
 
@@ -96,8 +128,8 @@ if __name__ == '__main__':
 
     try:
         if args.mode == 'index':
-            # index = load_index(args.index, create_if_new=True)
-            collection = Collection.make_collection(args.index)
+            index = load_index(args.index, create_if_new=True)
+            #collection = Collection.make_collection(args.index)
 
             if args.file is None:
                 logger.info('No file given, doing nothing.')
@@ -140,11 +172,22 @@ if __name__ == '__main__':
             # TODO: clear the work directory or use a temporary
             for page_num, img in enumerate(images):
                 inch_per_cm = 0.3937008
-                footer_height = np.floor(2.5 * inch_per_cm * dpi)
-                cropped = img.crop((0, img.height-footer_height, img.width, img.height))
+                footer_height = np.floor(1.5 * inch_per_cm * dpi)
+                #cropped = img.crop((0, img.height-footer_height, img.width, img.height))
+
+                cv_image = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR) # convert PIL image first to numpy array and then to the cv format for BGR color channels
+                cv_image = thresholding(get_grayscale(cv_image))
+                cv_image = deskew(cv_image)
+                cropped = cv_image[cv_image.shape[0]-int(footer_height):, :]
+                cv2.imshow('img1', cropped)
+                cv2.waitKey(1)  # without the wait, the imshow method does not work. Why? Why should I know?
+                ans = input('Press enter to resume')
+                cv2.destroyWindow('img1')
+
                 # cropped.show()
-                tesseract_options = r'-c tessedit_char_blacklist=O@~'
+                tesseract_options = r'-c tessedit_char_blacklist=QO@~'
                 img_string = pytesseract.image_to_string(cropped, config=tesseract_options)
+                logger.info('ocr string = {}'.format(img_string))
                 page_id = PageId(img_string)
                 success = page_id.is_valid()
                 logger.info('Page %d,  Success : %s, %s, %s', page_num, success, page_id, PageId.tokenize_ocr_string(img_string))
