@@ -11,6 +11,7 @@ import shutil
 import PyPDF2
 import copy
 import cv2
+import imutils #for contours
 
 import json_utils
 import os_utils
@@ -84,7 +85,8 @@ def thresholding(image):
 
 #skew correction
 def deskew(image):
-    coords = np.column_stack(np.where(image < 255))
+    bw = thresholding(get_grayscale(image))
+    coords = np.column_stack(np.where(bw < 255))
     center, dimensions, angle= cv2.minAreaRect(coords)
     if angle < -45:
         angle = -(90 + angle)
@@ -94,11 +96,76 @@ def deskew(image):
     (h, w) = image.shape[:2]
     im_center = (w // 2, h // 2)
     M = cv2.getRotationMatrix2D(im_center, angle, 1.0)
+    crop_border = 5
     rotated = cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
-    crop_h = slice(int(np.floor(center[0]-dimensions[0]/2.)), int(np.ceil(center[0]+dimensions[0]/2.)))
-    crop_w = slice(int(np.floor(center[1] - dimensions[1] / 2.)), int(np.ceil(center[1] + dimensions[1] / 2.)))
+    crop_h = slice(max(int(np.floor(center[0]-dimensions[0]/2.-crop_border)), 0),
+                   min(int(np.ceil (center[0]+dimensions[0]/2.+crop_border)), h-1))
+    crop_w = slice(max(int(np.floor(center[1]-dimensions[1]/2.-crop_border)), 0),
+                   min(int(np.ceil (center[1]+dimensions[1]/2.+crop_border)), w-1))
+    #crop_w = slice(int(np.floor(center[1] - dimensions[1] / 2.)), int(np.ceil(center[1] + dimensions[1] / 2.)))
     cropped = rotated[crop_h, crop_w]
     return cropped
+
+
+def find_rectangles(cpoints, indices):
+    candidate_indices = []
+    candidate_points = []
+
+    for i, c in enumerate(cpoints):
+        c = cpoints[i]
+        if len(c) <= 100001:
+            candidate_indices.append(indices[i])
+            candidate_points.append(c)
+    return candidate_points, candidate_indices
+
+
+def find_contours_with_three_children(contours, mask=None):
+    hierarchy = contours[1]
+    candidates = []
+    if mask is None:
+        mask = range(len(contours[0]))
+
+    for i in mask:
+        h = hierarchy[0, i, :]
+        if h[2] == -1:
+            continue
+        children = 1
+        cur = h[2]
+        while hierarchy[0, cur, 0] != -1:
+            cur = hierarchy[0, cur, 0]
+            children += 1
+        if children != 3:
+            continue
+        candidates.append(i)
+    return candidates
+
+
+def detect_ocr_area(image):
+    img_copy = image.copy()
+    thresh = thresholding(get_grayscale(img_copy))
+    cnts = cv2.findContours(thresh, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+    #cnts = imutils.grab_contours(cnts)
+    perimeters = []
+    approx_contours = []
+    approx_indices = []
+    for i, c in enumerate(cnts[0]):
+        p = cv2.arcLength(c, True)
+        perimeters.append(p)
+        approx_indices.append(i)
+        approx_contours.append(cv2.approxPolyDP(c, 0.04 * p, True))
+        #cv2.drawContours(img_copy, [c], -1, (0, 255, 0), 3)
+        # cv2.drawContours(img_copy, [approx_contours[-1]], -1, (0, 255, 0), 3)
+    rect_c, rect_i = find_rectangles(cnts[0], range(len(cnts[0])))
+    rect_c, rect_i = find_rectangles(approx_contours, approx_indices)
+    for r in rect_c:
+        cv2.drawContours(img_copy, r, -1, (0,255,0), 3)
+    cv2.namedWindow('contours', cv2.WINDOW_NORMAL)
+    #cv2.imshow('contours', img_copy)
+    cv2.imshow('contours', img_copy)
+    cv2.resizeWindow('contours', 600, 800)
+    cv2.waitKey(1)
+    ans = input('Press enter to resume')
+    cv2.destroyWindow('contours')
 
 
 if __name__ == '__main__':
@@ -172,17 +239,20 @@ if __name__ == '__main__':
             # TODO: clear the work directory or use a temporary
             for page_num, img in enumerate(images):
                 inch_per_cm = 0.3937008
-                footer_height = np.floor(1.5 * inch_per_cm * dpi)
+                ocr_area_height = np.floor(1.75 * inch_per_cm * dpi)
+                ocr_area_width = np.floor(7.0 * inch_per_cm * dpi)
                 #cropped = img.crop((0, img.height-footer_height, img.width, img.height))
 
                 cv_image = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR) # convert PIL image first to numpy array and then to the cv format for BGR color channels
-                cv_image = thresholding(get_grayscale(cv_image))
+                #cv_image = get_grayscale(cv_image)
+                #cv_image = thresholding(cv_image)
                 cv_image = deskew(cv_image)
-                cropped = cv_image[cv_image.shape[0]-int(footer_height):, :]
-                cv2.imshow('img1', cropped)
+                detect_ocr_area(cv_image)
+                cropped = cv_image[cv_image.shape[0]-int(ocr_area_height):, 0:int(ocr_area_width)]
+                '''cv2.imshow('img1', cropped)
                 cv2.waitKey(1)  # without the wait, the imshow method does not work. Why? Why should I know?
                 ans = input('Press enter to resume')
-                cv2.destroyWindow('img1')
+                cv2.destroyWindow('img1')'''
 
                 # cropped.show()
                 tesseract_options = r'-c tessedit_char_blacklist=QO@~'
