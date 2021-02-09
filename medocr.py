@@ -15,9 +15,10 @@ import imutils #for contours
 
 import json_utils
 import os_utils
+import find_markers
 from defaultlogger import set_default_logging_behavior
 
-from pageid import PageId
+from pageid import PageId, page_id_from_ocr
 from collection import Collection
 logger = logging.getLogger('medocr.main')
 
@@ -107,67 +108,6 @@ def deskew(image):
     return cropped
 
 
-def find_rectangles(cpoints, indices):
-    candidate_indices = []
-    candidate_points = []
-
-    for i, c in enumerate(cpoints):
-        c = cpoints[i]
-        if len(c) <= 100001:
-            candidate_indices.append(indices[i])
-            candidate_points.append(c)
-    return candidate_points, candidate_indices
-
-
-def find_contours_with_three_children(contours, mask=None):
-    hierarchy = contours[1]
-    candidates = []
-    if mask is None:
-        mask = range(len(contours[0]))
-
-    for i in mask:
-        h = hierarchy[0, i, :]
-        if h[2] == -1:
-            continue
-        children = 1
-        cur = h[2]
-        while hierarchy[0, cur, 0] != -1:
-            cur = hierarchy[0, cur, 0]
-            children += 1
-        if children != 3:
-            continue
-        candidates.append(i)
-    return candidates
-
-
-def detect_ocr_area(image):
-    img_copy = image.copy()
-    thresh = thresholding(get_grayscale(img_copy))
-    cnts = cv2.findContours(thresh, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
-    #cnts = imutils.grab_contours(cnts)
-    perimeters = []
-    approx_contours = []
-    approx_indices = []
-    for i, c in enumerate(cnts[0]):
-        p = cv2.arcLength(c, True)
-        perimeters.append(p)
-        approx_indices.append(i)
-        approx_contours.append(cv2.approxPolyDP(c, 0.04 * p, True))
-        #cv2.drawContours(img_copy, [c], -1, (0, 255, 0), 3)
-        # cv2.drawContours(img_copy, [approx_contours[-1]], -1, (0, 255, 0), 3)
-    rect_c, rect_i = find_rectangles(cnts[0], range(len(cnts[0])))
-    rect_c, rect_i = find_rectangles(approx_contours, approx_indices)
-    for r in rect_c:
-        cv2.drawContours(img_copy, r, -1, (0,255,0), 3)
-    cv2.namedWindow('contours', cv2.WINDOW_NORMAL)
-    #cv2.imshow('contours', img_copy)
-    cv2.imshow('contours', img_copy)
-    cv2.resizeWindow('contours', 600, 800)
-    cv2.waitKey(1)
-    ans = input('Press enter to resume')
-    cv2.destroyWindow('contours')
-
-
 if __name__ == '__main__':
     set_default_logging_behavior(logfile='medocr')
 
@@ -238,31 +178,19 @@ if __name__ == '__main__':
             index[file_name] = [None for i in range(len(images))]
             # TODO: clear the work directory or use a temporary
             for page_num, img in enumerate(images):
-                inch_per_cm = 0.3937008
-                ocr_area_height = np.floor(1.75 * inch_per_cm * dpi)
-                ocr_area_width = np.floor(7.0 * inch_per_cm * dpi)
-                #cropped = img.crop((0, img.height-footer_height, img.width, img.height))
+                cv_image = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)  # convert PIL image first to numpy array and then to the cv format for BGR color channels
+                left_marker, right_marker, left_id = find_markers.findMarkers(cv_image)
+                ocr_fields = find_markers.extract_ocr_fields(cv_image, left_marker, right_marker)
 
-                cv_image = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR) # convert PIL image first to numpy array and then to the cv format for BGR color channels
-                #cv_image = get_grayscale(cv_image)
-                #cv_image = thresholding(cv_image)
-                cv_image = deskew(cv_image)
-                detect_ocr_area(cv_image)
-                cropped = cv_image[cv_image.shape[0]-int(ocr_area_height):, 0:int(ocr_area_width)]
-                '''cv2.imshow('img1', cropped)
-                cv2.waitKey(1)  # without the wait, the imshow method does not work. Why? Why should I know?
-                ans = input('Press enter to resume')
-                cv2.destroyWindow('img1')'''
+                tesseract_options = r'--oem 3 --psm 6 outputbase digits'
+                #tesseract_options = r'-c tessedit_char_blacklist=QO@~'
+                ocr_strings = [pytesseract.image_to_string(f, config=tesseract_options) for f in ocr_fields]
 
-                # cropped.show()
-                tesseract_options = r'-c tessedit_char_blacklist=QO@~'
-                img_string = pytesseract.image_to_string(cropped, config=tesseract_options)
-                logger.info('ocr string = {}'.format(img_string))
-                page_id = PageId(img_string)
+                page_id = page_id_from_ocr(left_id, ocr_strings)
                 success = page_id.is_valid()
-                logger.info('Page %d,  Success : %s, %s, %s', page_num, success, page_id, PageId.tokenize_ocr_string(img_string))
-
+                logger.info('Page %d,  Success : %s, %s', page_num, success, page_id)
                 index[file_name][page_num] = page_id.tuple()
+
             write_index(args.index, index)
 
             '''with tempfile.TemporaryDirectory() as temp_path:

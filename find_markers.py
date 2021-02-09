@@ -7,6 +7,7 @@ def angle_from_three_points(origin, a, b):
     db = b - origin
     return np.arccos( np.dot(da, db) / np.linalg.norm(da,2) / np.linalg.norm(db, 2) )
 
+
 def check_marker_is_square(marker_corners):
     # markers are listed clockwise, starting from the top left
     # check that all lengths are equal
@@ -19,6 +20,7 @@ def check_marker_is_square(marker_corners):
     max_angle_deviation = np.max(np.abs(angles - np.pi/2.))
     if relative_length_deviation > 0.05 or max_angle_deviation > 5.*180./np.pi:
         raise RuntimeError('The marker is not a square, which indicates that the picture was not scanned correctly.')
+
 
 def extract_ocr_fields(image, left_marker, right_marker):
     pos = left_marker[0, :]
@@ -61,7 +63,7 @@ def findMarkers(img):
         right_marker = corners[0][0, :, :]
     else:
         raise  RuntimeError('Exactly one marker must have the id 0, but the found ids were {}'.format(ids))
-    return left_marker, right_marker, left_id
+    return left_marker, right_marker, int(left_id[0])
 
 
 if __name__ == '__main__':
