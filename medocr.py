@@ -23,7 +23,7 @@ from collection import Collection
 logger = logging.getLogger('medocr.main')
 
 
-def load_index(name, create_if_new=False):
+'''def load_index(name, create_if_new=False):
     if os_utils.is_composite(name):
         raise ValueError('No paths are allowed as index names')
 
@@ -53,7 +53,7 @@ def write_index(name, index):
         raise NotADirectoryError('The index directory {} does not exist'.format(name))
     if not os.path.isfile(index_file_name):
         raise OSError('The directory {} exists, but it is not an index directory.'.format(name))
-    json_utils.write_json(index, index_file_name)
+    json_utils.write_json(index, index_file_name)'''
 
 
 def find_free_path(raw_path):
@@ -135,69 +135,19 @@ if __name__ == '__main__':
 
     try:
         if args.mode == 'index':
-            index = load_index(args.index, create_if_new=True)
-            #collection = Collection.make_collection(args.index)
+            #index = load_index(args.index, create_if_new=True)
+            collection = Collection.make_collection(args.index)
 
             if args.file is None:
                 logger.info('No file given, doing nothing.')
                 sys.exit(0)
 
             os_utils.validate_file_name(args.file, 'pdf')
-            folder, file_name = os.path.split(args.file)
-            file_in_index = os.path.join(args.index, file_name)
-            if file_name in index:
-                logger.info('File %s already exists in the index')
-                ans = input('File %s already exists in the index. Select one of the following:\n'
-                            '\t(clear) : Overwrite the current file\n'
-                            '\t(resume) : Resume indexing the current file\n'
-                            '\t(skip) : Do nothing for this file\n')
-                if ans == 'clear':
-                    index[file_name] = []
-                    os.remove(file_in_index)
-                    shutil.copyfile(args.file, file_in_index)
-                elif ans == 'resume':
-                    raise NotImplementedError('Resuming indexing a file is not implemented yet.')
-                elif ans == 'skip':
-                    logger.info('Skipping file %s', file_name)
-                    sys.exit(0)
-                else:
-                    logger.warning('Input %s not understood.', ans)
-                    logger.info('Skipping file %s', file_name)
-            else:
-                index[file_name] = []
-                shutil.copyfile(args.file, file_in_index)
-
-            work_folder = os.path.join(args.index, 'work')
-            os_utils.mkdir_if_nonexistent(work_folder)
-            os_utils.clear_files_with_extension(work_folder, 'jpg')
-            dpi = 200
-            logger.info('Converting the file "%s" to images', file_name)
-            images = convert_from_path(file_in_index, dpi=dpi, fmt='jpg', grayscale=True, output_folder=work_folder)
-            logger.debug('finished converting')
-
-            index[file_name] = [None for i in range(len(images))]
-            # TODO: clear the work directory or use a temporary
-            for page_num, img in enumerate(images):
-                cv_image = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)  # convert PIL image first to numpy array and then to the cv format for BGR color channels
-                left_marker, right_marker, left_id = find_markers.findMarkers(cv_image)
-                ocr_fields = find_markers.extract_ocr_fields(cv_image, left_marker, right_marker)
-
-                tesseract_options = r'--oem 3 --psm 6 outputbase digits'
-                #tesseract_options = r'-c tessedit_char_blacklist=QO@~'
-                ocr_strings = [pytesseract.image_to_string(f, config=tesseract_options) for f in ocr_fields]
-
-                page_id = page_id_from_ocr(left_id, ocr_strings)
-                success = page_id.is_valid()
-                logger.info('Page %d,  Success : %s, %s', page_num, success, page_id)
-                index[file_name][page_num] = page_id.tuple()
-
-            write_index(args.index, index)
-
-            '''with tempfile.TemporaryDirectory() as temp_path:
-                images_from_path = convert_from_path(args.file, output_folder=temp_path)'''
+            collection.add_pdf(args.file, 'ask')
+            collection.write()
 
         elif args.mode == 'split':
-            index = load_index(args.index, create_if_new=False)
+            '''index = load_index(args.index, create_if_new=False)
 
             dest = find_free_path(args.to)
             os_utils.mkdir_if_nonexistent(dest)
@@ -237,7 +187,7 @@ if __name__ == '__main__':
                 with open(os.path.join(dest, file_dest), 'wb') as out_file:
                     merger.write(out_file)
                 merger.close()
-                json_utils.write_json(new_index, os.path.join(dest, 'index'))
+                json_utils.write_json(new_index, os.path.join(dest, 'index'))'''
         elif args.mode == 'merge':
             logger.warning('The subcommand "merge" is not implemented yet. Doing nothing')
         else:

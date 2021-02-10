@@ -2,6 +2,10 @@ import numpy as np
 import cv2
 import argparse
 
+class MarkerException(Exception):
+    def __init__(self, message):
+        super().__init__(message)
+
 def angle_from_three_points(origin, a, b):
     da = a - origin
     db = b - origin
@@ -19,7 +23,7 @@ def check_marker_is_square(marker_corners):
     angles  = np.array([angle_from_three_points(marker_corners[i, :], marker_corners[np.mod(i-1, 4)], marker_corners[np.mod(i+1, 4)]) for i in range(4)])
     max_angle_deviation = np.max(np.abs(angles - np.pi/2.))
     if relative_length_deviation > 0.05 or max_angle_deviation > 5.*180./np.pi:
-        raise RuntimeError('The marker is not a square, which indicates that the picture was not scanned correctly.')
+        raise MarkerException('The marker is not a square, which indicates that the picture was not scanned correctly.')
 
 
 def extract_ocr_fields(image, left_marker, right_marker):
@@ -50,7 +54,7 @@ def findMarkers(img):
     markers = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
     corners, ids, rejected = cv2.aruco.detectMarkers(img, markers)
     if len(ids) != 2:
-        raise RuntimeError('There need to be exactly 2 markers, found {}'.format(len(ids)))
+        raise MarkerException('There need to be exactly 2 markers, found {}'.format(len(ids)))
     for i in range(len(ids)):
         check_marker_is_square(corners[i][0,:,:])
     if ids[0] != 0 and ids[1] == 0:
@@ -62,7 +66,7 @@ def findMarkers(img):
         left_marker = corners[1][0, :, :]
         right_marker = corners[0][0, :, :]
     else:
-        raise  RuntimeError('Exactly one marker must have the id 0, but the found ids were {}'.format(ids))
+        raise  MarkerException('Exactly one marker must have the id 0, but the found ids were {}'.format(ids))
     return left_marker, right_marker, int(left_id[0])
 
 
