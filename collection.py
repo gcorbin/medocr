@@ -53,9 +53,6 @@ class Collection:
             self._index[file_name] = []
             shutil.copyfile(pdf, index_pdf)
 
-        if action == 'resume':
-            raise NotImplementedError('Resuming indexing a file is not implemented yet.')
-
         work_folder = os.path.join(self._path, 'work')
         os_utils.mkdir_if_nonexistent(work_folder)
         os_utils.clear_files_with_extension(work_folder, 'jpg')
@@ -68,26 +65,32 @@ class Collection:
 
         if action == 'clear':
             self._index[file_name] = [None for i in range(len(images))]
-        for page_num, img in enumerate(images):
-            if self._index[file_name][page_num] is not None:
-                continue
-            cv_image = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)  # convert PIL image first to numpy array and then to the cv format for BGR color channels
-            try:
-                left_marker, right_marker, left_id = find_markers.findMarkers(cv_image)
-                ocr_fields = find_markers.extract_ocr_fields(cv_image, left_marker, right_marker)
-            except find_markers.MarkerException as mex:
-                logger.info('Could not find the markers')
-                logger.info(mex)
-                self._index[file_name][page_num] = PageId()
-            else:
-                tesseract_options = r'--oem 3 --psm 6 outputbase digits'
-                # tesseract_options = r'-c tessedit_char_blacklist=QO@~'
-                ocr_strings = [pytesseract.image_to_string(f, config=tesseract_options) for f in ocr_fields]
 
-                page_id = page_id_from_ocr(left_id, ocr_strings)
-                success = page_id.is_valid()
-                logger.info('Page %d,  Success : %s, %s', page_num, success, page_id)
-                self._index[file_name][page_num] = page_id.tuple()
+        for page_num, img in enumerate(images):
+            try:
+                if self._index[file_name][page_num] is not None:
+                    continue
+                cv_image = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)  # convert PIL image first to numpy array and then to the cv format for BGR color channels
+                try:
+                    left_marker, right_marker, left_id = find_markers.findMarkers(cv_image)
+                    ocr_fields = find_markers.extract_ocr_fields(cv_image, left_marker, right_marker)
+                except find_markers.MarkerException as mex:
+                    logger.info('Could not find the markers')
+                    logger.info(mex)
+                    self._index[file_name][page_num] = PageId()
+                else:
+                    tesseract_options = r'--oem 3 --psm 6 outputbase digits'
+                    # tesseract_options = r'-c tessedit_char_blacklist=QO@~'
+                    ocr_strings = [pytesseract.image_to_string(f, config=tesseract_options) for f in ocr_fields]
+
+                    page_id = page_id_from_ocr(left_id, ocr_strings)
+                    success = page_id.is_valid()
+                    logger.info('Page %d,  Success : %s, %s', page_num, success, page_id)
+                    self._index[file_name][page_num] = page_id.tuple()
+            except KeyboardInterrupt:
+                logger.warning('Keyboard interrupt in index loop. Stopped processing at page {}'.format(page_num))
+                self._index[file_name][page_num] = None
+                break
 
     def write(self):
         json_utils.write_json(self._index, self._index_file)
