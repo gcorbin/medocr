@@ -5,6 +5,8 @@ from pdf2image import convert_from_path
 import pytesseract
 import numpy as np
 import cv2
+import PyPDF2
+import tempfile
 
 import os_utils
 import json_utils
@@ -15,8 +17,7 @@ logger = logging.getLogger('medocr.'+__name__)
 
 
 class Collection:
-    def __init__(self, path=None):
-        logger.info('Loading index %s', path)
+    def __init__(self, path):
         if not Collection.is_collection(path):
             raise OSError('The path {} does not point to a valid collection: '
                           'Either the directory does not exist, or it does not contain an index file'.format(path))
@@ -24,7 +25,6 @@ class Collection:
         self._path = path
         self._index_file = Collection.index_file(self._path)
         self._index = json_utils.read_json(self._index_file)
-
 
     def add_pdf(self, pdf, action='clear'):
         folder, file_name = os.path.split(pdf)
@@ -91,6 +91,42 @@ class Collection:
                 logger.warning('Keyboard interrupt in index loop. Stopped processing at page {}'.format(page_num))
                 self._index[file_name][page_num] = None
                 break
+        self.write()
+
+    def reorder_by_task(self, dest):
+        # gather all pages for each task number
+        pages_by_task_id = dict()
+        for file_name, id_list in self._index.items():
+            # logger.info('file name %s, id_list %s', file_name, id_list)
+            for file_page, pid in enumerate(id_list):
+                # logger.info('file page %s, pid %s', file_page, pid)
+                page_id = PageId(pid)
+                if page_id.task not in pages_by_task_id:
+                    pages_by_task_id[page_id.task] = []
+                pages_by_task_id[page_id.task].append((file_name, file_page, page_id))
+
+        by_task = Collection.make_new_collection(dest)
+
+        for tid, page_list in pages_by_task_id.items():
+            file_dest = 'task{}.pdf'.format(tid)
+            by_task._index[file_dest] = []
+
+            open_infiles = dict()
+            merger = PyPDF2.PdfFileMerger()
+            for page_addr in page_list:
+                file_name = page_addr[0]
+                file_page = page_addr[1]
+                page_id = page_addr[2]
+                in_file_name = os.path.join(self._path, file_name)
+                if in_file_name not in open_infiles:
+                    open_infiles[in_file_name] = open(in_file_name, 'rb')
+                merger.append(open_infiles[in_file_name], pages=(file_page, file_page + 1))
+                by_task._index[file_dest].append(page_id.tuple())
+            with open(os.path.join(dest, file_dest), 'wb') as out_file:
+                merger.write(out_file)
+            merger.close()
+            by_task.write()
+        return Collection(dest)
 
     def write(self):
         json_utils.write_json(self._index, self._index_file)
@@ -112,15 +148,19 @@ class Collection:
         return os.path.join(path, 'index')
 
     @staticmethod
-    def make_collection(path):
-        if Collection.is_collection(path):
-            return Collection(path)
-
-        logger.info('Creating the new index %s', path)
-
-        if Collection.is_occupied_dir(path):
-            raise OSError('The directory {} already exists, but does not contain an index file'.format(path))
+    def make_new_collection(path):
+        if os.path.isdir(path):
+            raise OSError('The directory already exists {}'.format(path))
 
         os.mkdir(path)
         json_utils.write_json(dict(), Collection.index_file(path))
         return Collection(path)
+
+    @staticmethod
+    def make_or_read_collection(path):
+        if Collection.is_collection(path):
+            logger.info('Reading existing collection %s', path)
+            return Collection(path)
+
+        logger.info('Creating the new collection %s', path)
+        return Collection.make_new_collection(path)
