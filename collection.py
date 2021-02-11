@@ -128,6 +128,29 @@ class Collection:
             by_task.write()
         return Collection(dest)
 
+    def reorder_by_sheet(self, dest):
+        raise NotImplementedError('The function reoder_by_sheet is not implemented yet')
+
+    def validate(self):
+        invalid = []
+        unread = []
+        duplicates = []
+        pages_by_id = dict()
+
+        for file_name, id_list in self._index.items():
+            for page_num, page_id in enumerate(id_list):
+                if page_id is None:
+                    unread.append((file_name, page_id))
+                if not page_id.is_valid:
+                    pass
+
+
+    def manual_label(self, file_name, page_num):
+        pass
+
+    def is_complete(self):
+        pass
+
     def write(self):
         json_utils.write_json(self._index, self._index_file)
 

@@ -59,7 +59,6 @@ if __name__ == '__main__':
 
             os_utils.validate_file_name(args.file, 'pdf')
             collection.add_pdf(args.file, 'ask')
-            collection.write()
 
         elif args.mode == 'split':
             collection = Collection(args.index)
@@ -67,7 +66,10 @@ if __name__ == '__main__':
             by_task = collection.reorder_by_task(dest)
 
         elif args.mode == 'merge':
-            logger.warning('The subcommand "merge" is not implemented yet. Doing nothing')
+            collection = Collection(args.index)
+            dest = find_free_path(args.to)
+            by_sheet = collection.reorder_by_sheet(dest)
+
         else:
             # should never happen, because the argparse module asserts that only the existing choices are possible
             logger.error('Unrecognized subcommand %s', args.mode)

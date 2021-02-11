@@ -28,7 +28,11 @@ def page_id_from_ocr(exam_id, ocr_strings):
     pid = PageId()
     pid.exam = exam_id
     pid.sheet = get_number_from_ocr_string(ocr_strings[0])
-    pid.task = get_number_from_ocr_string(ocr_strings[1])
+    if ocr_strings[1] != '':
+        pid.task = get_number_from_ocr_string(ocr_strings[1])
+    else:
+        pid.task = -1
+
     pid.page = get_number_from_ocr_string(ocr_strings[2])
     return pid
 
@@ -52,6 +56,9 @@ class PageId:
                and self.sheet is not None\
                and self.task is not None\
                and self.page is not None
+
+    def is_empty_page(self):
+        return self.is_valid() and self.task < 0
 
     def __str__(self):
         return 'Klausur {}, Bogen {}, Aufgabe {}, Seite {}'.format(self.exam, self.sheet, self.task, self.page)
