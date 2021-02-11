@@ -6,14 +6,20 @@ def compute_checksum(number):
     return checksum % 10
 
 
-def split_checksum(number):
-    number = number // 10
-    checksum = number % 10
+def split_checksum(num_with_checksum):
+    number = num_with_checksum // 10
+    checksum = num_with_checksum % 10
     return number, checksum
 
 
+def remove_whitespace(ocr_string):
+    return ''.join(ocr_string.split())  # remove all whitespace
+
+
 def get_number_from_ocr_string(ocr_string):
-    ocr_string = ''.join(ocr_string.split())  # remove all whitespace
+    ocr_string = remove_whitespace(ocr_string)
+    if len(ocr_string) != 4:
+        return None
     try:
         ocr_int = int(ocr_string)
     except ValueError as e:
@@ -31,7 +37,7 @@ def page_id_from_ocr(exam_id, ocr_strings):
     pid = PageId()
     pid.exam = exam_id
     pid.sheet = get_number_from_ocr_string(ocr_strings[0])
-    if ocr_strings[1] != '':
+    if remove_whitespace(ocr_strings[1]) != '':
         pid.task = get_number_from_ocr_string(ocr_strings[1])
     else:
         pid.task = -1

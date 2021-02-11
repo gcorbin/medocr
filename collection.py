@@ -28,11 +28,12 @@ class Collection:
 
         self._path = path
         self._index_file = Collection.index_file(self._path)
-        self._index = json_utils.read_json(self._index_file)
+        index_s = json_utils.read_json(self._index_file)
+        self._index = Collection.index_to_page_id(index_s)
         self._examid = None
         for pid_list in self._index.values():
             if len(pid_list) > 0:
-                self._examid = PageId(pid_list[0]).exam
+                self._examid = pid_list[0].exam
                 break
 
     def add_pdf(self, pdf, action='clear'):
@@ -89,7 +90,7 @@ class Collection:
                 page_id = page_id_from_ocr(left_id, ocr_strings)
                 success = page_id.is_valid()
                 logger.info('Page %d,  Success : %s, %s', page_num, success, page_id)
-                self._index[file_name][page_num] = page_id.tuple()
+                self._index[file_name][page_num] = page_id
         self.write()
         # TODO: cleanup if an error occured
 
@@ -98,9 +99,8 @@ class Collection:
         pages_by_task_id = dict()
         for file_name, id_list in self._index.items():
             # logger.info('file name %s, id_list %s', file_name, id_list)
-            for file_page, pid in enumerate(id_list):
+            for file_page, page_id in enumerate(id_list):
                 # logger.info('file page %s, pid %s', file_page, pid)
-                page_id = PageId(pid)
                 if page_id.task not in pages_by_task_id:
                     pages_by_task_id[page_id.task] = []
                 pages_by_task_id[page_id.task].append((file_name, file_page, page_id))
@@ -121,7 +121,7 @@ class Collection:
                 if in_file_name not in open_infiles:
                     open_infiles[in_file_name] = open(in_file_name, 'rb')
                 merger.append(open_infiles[in_file_name], pages=(file_page, file_page + 1))
-                by_task._index[file_dest].append(page_id.tuple())
+                by_task._index[file_dest].append(page_id)
             with open(os.path.join(dest, file_dest), 'wb') as out_file:
                 merger.write(out_file)
             merger.close()
@@ -146,10 +146,9 @@ class Collection:
 
     def label_invalid_entries_manually(self):
         for file_name, id_list in self._index.items():
-            for page_num, pidt in enumerate(id_list):
-                page_id = PageId(pidt)
+            for page_num, page_id in enumerate(id_list):
                 if page_id is None or not page_id.is_valid():
-                    self._index[file_name][page_num] = self.ask_for_label(file_name, page_num).tuple()
+                    self._index[file_name][page_num] = self.ask_for_label(file_name, page_num)
 
     def ask_for_label(self, file_name, page_num):
         PIL_img = convert_from_path(os.path.join(self._path, file_name), first_page=page_num+1, last_page=page_num+1, dpi=100, fmt='jpg', grayscale=True)
@@ -165,6 +164,7 @@ class Collection:
         while not pid.is_valid():
             ans = input('Please enter the label for the shown page as "xxxx, yyyy, zzzz"\n')
             pid = page_id_from_ocr(self._examid, ans.split(','))
+            logger.info('%s', pid)
         cv2.destroyWindow(window_name)
         return pid
 
@@ -174,29 +174,30 @@ class Collection:
 
         for file_name, id_list in self._index.items():
             for page_num, page_id in enumerate(id_list):
+                idt = page_id.tuple()
                 # found a duplicate
-                if page_id in pages_by_id:
+                if idt in pages_by_id:
                     # this is a new duplicate
                     # create a new duplicate entry with the address of the current item and
                     # the address of the referenced item
-                    if page_id not in duplicates:
-                        duplicates[page_id] = [(file_name, page_num), pages_by_id[page_id]]
+                    if idt not in duplicates:
+                        duplicates[idt] = [(file_name, page_num), pages_by_id[idt]]
                     # there are already more than two entries with the same page_id
                     # simply append the current item to the list of duplicates
                     else:
-                        duplicates[page_id].append((file_name, page_num))
+                        duplicates[idt].append((file_name, page_num))
                 # no duplicate
                 else:
-                    pages_by_id[page_id] = (file_name, page_num)
+                    pages_by_id[idt] = (file_name, page_num)
         return duplicates
 
     def resolve_duplicates(self, duplicates):
-        for page_id, duplist in duplicates.items():
+        for idt, duplist in duplicates.items():
             unchanged = []
             for page_addr in duplist:
                 pid = self.ask_for_label(page_addr[0], page_addr[1])
                 self._index[page_addr[0]][page_addr[1]] = pid
-                if pid == page_id:
+                if pid.tuple() == idt:
                     unchanged.append(page_addr)
             # we are in trouble, there is a true duplicate
             if len(unchanged) > 1:
@@ -217,7 +218,8 @@ class Collection:
         pass
 
     def write(self):
-        json_utils.write_json(self._index, self._index_file)
+        index_s = Collection.index_to_serializable(self._index)
+        json_utils.write_json(index_s, self._index_file)
 
     @staticmethod
     def index_to_serializable(index):
