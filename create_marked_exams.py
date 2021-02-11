@@ -24,10 +24,11 @@ if __name__ == '__main__':
         os_utils.validate_file_name(args.exam, 'pdf')
         os_utils.validate_file_name(args.marks, 'pdf')
         
-        exam_name, ext = os.path.splitext(args.exam)
+        exam_path, ext = os.path.splitext(args.exam)
+        exam_folder, exam_name = os.path.split(exam_path)
         
         if args.output is None:
-            args.output = exam_name
+            args.output = exam_path
         os_utils.mkdir_if_nonexistent(args.output)   
         os_utils.clear_files_with_extension(args.output, 'pdf')
 
@@ -36,7 +37,9 @@ if __name__ == '__main__':
                 exam_pdf_reader = PyPDF2.PdfFileReader(exam_file)
                 marks_pdf_reader = PyPDF2.PdfFileReader(marks_file)
                 
-                for idx in range(marks_pdf_reader.numPages): 
+                for idx in range(marks_pdf_reader.numPages):
+                    print('\r                                            \r'
+                          'File {}/{}'.format(idx, marks_pdf_reader.numPages), end='')
                     out_writer = PyPDF2.PdfFileWriter()
                     mark_page = marks_pdf_reader.getPage(idx)
                     for exam_page_number in range(exam_pdf_reader.numPages):
