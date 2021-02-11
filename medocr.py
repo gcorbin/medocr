@@ -42,6 +42,8 @@ if __name__ == '__main__':
                                          help='Split individual exams and rearrange by task number')
     merge_parser = subparsers.add_parser('merge', parents=[parent_parser], conflict_handler='resolve',
                                          help='Merge back into the individual exams')
+    validate_parser = subparsers.add_parser('validate', parents=[parent_parser], conflict_handler='resolve',
+                                         help='Validate the collection')
 
     index_parser.add_argument('--file', '-f', default=None, help='.pdf file containing scanned exams')
 
@@ -69,6 +71,10 @@ if __name__ == '__main__':
             collection = Collection(args.index)
             dest = find_free_path(args.to)
             by_sheet = collection.reorder_by_sheet(dest)
+
+        elif args.mode == 'validate':
+            collection = Collection(args.index)
+            collection.validate()
 
         else:
             # should never happen, because the argparse module asserts that only the existing choices are possible

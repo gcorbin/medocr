@@ -24,7 +24,10 @@ def get_number_from_ocr_string(ocr_string):
 
     return number
 
+
 def page_id_from_ocr(exam_id, ocr_strings):
+    if len(ocr_strings) != 3:
+        return PageId()
     pid = PageId()
     pid.exam = exam_id
     pid.sheet = get_number_from_ocr_string(ocr_strings[0])
@@ -35,6 +38,7 @@ def page_id_from_ocr(exam_id, ocr_strings):
 
     pid.page = get_number_from_ocr_string(ocr_strings[2])
     return pid
+
 
 class PageId:
     def __init__(self, data=None):
