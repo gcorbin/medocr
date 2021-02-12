@@ -178,6 +178,9 @@ class Collection:
             while len(duplicates.keys()) > 0:
                 duplicates = self.find_duplicates()
                 self.resolve_duplicates(duplicates)
+            missing = self.find_missing_pages()
+            if len(missing) > 0:
+                logger.warning('The following pages are missing: %s', missing)
         except KeyboardInterrupt as ki:
             logger.warning('Keyboard interrupt during validation. Writing collection.')
             self.write()
@@ -185,6 +188,7 @@ class Collection:
         self.write()
 
     def label_invalid_entries_manually(self):
+        logger.info('Relabel invalid entries.')
         for file_name, id_list in self._index.items():
             for page_num, page_id in enumerate(id_list):
                 if page_id is None or not page_id.is_valid():
@@ -209,6 +213,7 @@ class Collection:
         return pid
 
     def find_duplicates(self):
+        logger.info('Find and resolve duplicates.')
         duplicates = dict()
         pages_by_id = dict()
 
@@ -245,14 +250,10 @@ class Collection:
                                    'Try to remove one of the files from the collection.'
                                    ''.format(unchanged[0][0], unchanged[0][1], unchanged[1][0], unchanged[1][1]))
 
-    def resolve_duplicate(self, addr1, addr2):
-        # cases:
-        # - true duplicate: this is bad and should not happen.
-        # - id1 correct, id2 incorrect: manually label id2
-        # - id1 incorrect, id2 correct: manually label id1
-        # - both incorrect: manually label both
-        # we need to apply this iteratively
-        pass
+    def find_missing_pages(self):
+        logger.info('Find missing pages.')
+        logger.warning('Find missing pages not yet implemented')
+        return []
 
     def is_complete(self):
         pass
