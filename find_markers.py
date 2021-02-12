@@ -53,6 +53,8 @@ def extract_ocr_fields(image, left_marker, right_marker):
 def findMarkers(img):
     markers = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
     corners, ids, rejected = cv2.aruco.detectMarkers(img, markers)
+    if ids is None:
+        raise MarkerException('There need to be exactly 2 markers, found 0')
     if len(ids) != 2:
         raise MarkerException('There need to be exactly 2 markers, found {}'.format(len(ids)))
     for i in range(len(ids)):

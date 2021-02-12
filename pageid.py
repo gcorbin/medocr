@@ -1,3 +1,6 @@
+import string
+
+
 def compute_checksum(number):
     if number < 0 or number > 999:
         raise ValueError('Checksums are only defined for three-digit positive integers, got {}'.format(number))
@@ -20,6 +23,11 @@ def get_number_from_ocr_string(ocr_string):
     ocr_string = remove_whitespace(ocr_string)
     if len(ocr_string) != 4:
         return None
+    # this should be stricter than the int conversion below
+    # since -011 converts to int just fine but is clearly invalid
+    for digit in ocr_string:
+        if digit not in '0123456789':
+            return None
     try:
         ocr_int = int(ocr_string)
     except ValueError as e:

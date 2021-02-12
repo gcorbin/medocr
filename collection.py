@@ -73,26 +73,68 @@ class Collection:
 
         self._index[file_name] = [None for i in range(len(images))]
 
-        for page_num, img in enumerate(images):
-            cv_image = PIL_to_cv2(img)
-            try:
-                left_marker, right_marker, left_id = find_markers.findMarkers(cv_image)
-                ocr_fields = find_markers.extract_ocr_fields(cv_image, left_marker, right_marker)
-            except find_markers.MarkerException as mex:
-                logger.info('Could not find the markers')
-                logger.info(mex)
-                self._index[file_name][page_num] = PageId()
-            else:
-                tesseract_options = r'--oem 3 --psm 6 outputbase digits'
-                # tesseract_options = r'-c tessedit_char_blacklist=QO@~'
-                ocr_strings = [pytesseract.image_to_string(f, config=tesseract_options) for f in ocr_fields]
+        success = True
+        marker_errors = 0
+        continue_despite_marker_errors = False
+        max_allowed_marker_errors = min(3, len(images))
+        logger.info('max allowed marker errors = {}'.format(max_allowed_marker_errors))
+        try:
+            for page_num, img in enumerate(images):
+                cv_image = PIL_to_cv2(img)
+                try:
+                    left_marker, right_marker, left_id = find_markers.findMarkers(cv_image)
+                    ocr_fields = find_markers.extract_ocr_fields(cv_image, left_marker, right_marker)
+                except find_markers.MarkerException as mex:
+                    logger.info('Could not find the markers')
+                    logger.info(mex)
+                    marker_errors += 1
+                    self._index[file_name][page_num] = PageId()
+                else:
+                    tesseract_options = r'--oem 3 --psm 6 outputbase digits'
+                    # tesseract_options = r'-c tessedit_char_blacklist=QO@~'
+                    ocr_strings = [pytesseract.image_to_string(f, config=tesseract_options) for f in ocr_fields]
 
-                page_id = page_id_from_ocr(left_id, ocr_strings)
-                success = page_id.is_valid()
-                logger.info('Page %d,  Success : %s, %s', page_num, success, page_id)
-                self._index[file_name][page_num] = page_id
-        self.write()
-        # TODO: cleanup if an error occured
+                    page_id = page_id_from_ocr(left_id, ocr_strings)
+                    logger.info('Page %d,  Success : %s, %s', page_num, page_id.is_valid(), page_id)
+                    if self._examid is None:
+                        self._examid = page_id.exam
+                    if self._examid != page_id.exam:
+                        marker_errors += 1
+                    self._index[file_name][page_num] = page_id
+
+                if not continue_despite_marker_errors and marker_errors >= max_allowed_marker_errors:
+                    logger.warning('Encountered at least {} pages with either unidentifiable markers or markers with'
+                                   'the wrong id. The current exam id is {}.'.format(max_allowed_marker_errors, self._examid))
+
+                    ans = input('Are you sure that you are reading the right pdf?\n'
+                                'Enter "continue" to treat all further errors as image recognition errors\n'
+                                'Enter "stop" if you do not want to enter this pdf to the collection\n'
+                                'WARNING: Continuing with a wrong pdf will result in a corrupted index.\n'.format(self._examid))
+                    while ans not in ['continue', 'stop']:
+                        ans = input('Enter "stop" or "continue"\n')
+                    if ans == 'continue':
+                        logger.info('Continuing. Treating further marker errors as image recognition errors. ')
+                        continue_despite_marker_errors = True
+                    else:
+                        logger.info('Stopping.')
+                        success = False
+                        continue_despite_marker_errors = False
+                        break
+
+
+        except Exception as ex:
+            logger.critical('An unhandled exception occured during processing of the pdf {}'.format(file_name))
+            os.remove(index_pdf)
+            raise ex
+        else:
+            if success:
+                logger.info('Successfully added the pdf to the collection.')
+                self.write()
+            else:
+                logger.warning('The pdf was not be indexed completely and is not added to the collection.')
+                self._index.pop(file_name)
+                self.write()
+                os.remove(index_pdf)
 
     def reorder_by_task(self, dest):
         # gather all pages for each task number
