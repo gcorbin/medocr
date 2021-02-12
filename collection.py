@@ -80,13 +80,17 @@ class Collection:
         logger.info('max allowed marker errors = {}'.format(max_allowed_marker_errors))
         try:
             for page_num, img in enumerate(images):
+                logger.info('Page number {}'.format(page_num + 1))
                 cv_image = PIL_to_cv2(img)
                 try:
                     left_marker, right_marker, left_id = find_markers.findMarkers(cv_image)
                     ocr_fields = find_markers.extract_ocr_fields(cv_image, left_marker, right_marker)
+                    if self._examid is None:
+                        self._examid = left_id
+                    if self._examid != left_id:
+                        raise find_markers.MarkerException('The marker id {} is different from the exam id {} of this collection'.format(left_id, self._examid))
                 except find_markers.MarkerException as mex:
-                    logger.info('Could not find the markers')
-                    logger.info(mex)
+                    logger.warning(mex)
                     marker_errors += 1
                     self._index[file_name][page_num] = PageId()
                 else:
@@ -95,11 +99,7 @@ class Collection:
                     ocr_strings = [pytesseract.image_to_string(f, config=tesseract_options) for f in ocr_fields]
 
                     page_id = page_id_from_ocr(left_id, ocr_strings)
-                    logger.info('Page %d,  Success : %s, %s', page_num, page_id.is_valid(), page_id)
-                    if self._examid is None:
-                        self._examid = page_id.exam
-                    if self._examid != page_id.exam:
-                        marker_errors += 1
+                    logger.info('Page id = %s', page_id)
                     self._index[file_name][page_num] = page_id
 
                 if not continue_despite_marker_errors and marker_errors >= max_allowed_marker_errors:
@@ -120,8 +120,6 @@ class Collection:
                         success = False
                         continue_despite_marker_errors = False
                         break
-
-
         except Exception as ex:
             logger.critical('An unhandled exception occured during processing of the pdf {}'.format(file_name))
             os.remove(index_pdf)
