@@ -283,8 +283,26 @@ class Collection:
 
     def find_missing_pages(self):
         logger.info('Find missing pages.')
-        logger.warning('Find missing pages not yet implemented')
-        return []
+        # find all unique sheet ids and page numbers
+        sheets = set()
+        pages = set()
+        for id_list in self._index.values():
+            for id in id_list:
+                sheets.add(id.sheet)
+                pages.add(id.page)
+
+        # map from sheet ids and page numbers to rows and cols of an array
+        sheet_rows = {s: i for i,s in enumerate(sheets)}
+        page_cols = {p: i for i,p in enumerate(pages)}
+        sheets_x_pages = np.zeros((len(sheet_rows), len(page_cols)))
+        # find all combinations of sheet id and page numbers that exist in the index
+        for id_list in self._index.values():
+            for id in id_list:
+                sheets_x_pages[sheet_rows[id.sheet], page_cols[id.page]] = 1
+        # all other combinations are missing
+        missing = [(s, p) for s in sheets for p in pages if sheets_x_pages[sheet_rows[s], page_cols[p]] == 0]
+        # this algorithm will not report a page missing if it misses in each sheet
+        return missing
 
     def is_complete(self):
         pass
