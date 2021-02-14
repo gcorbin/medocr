@@ -38,19 +38,19 @@ if __name__ == '__main__':
                                             description='Select one of the following operations: ')
     add_parser = subparsers.add_parser('add', parents=[parent_parser], conflict_handler='resolve',
                                          help='Create an index from OCR marks.')
-    split_parser = subparsers.add_parser('split', parents=[parent_parser], conflict_handler='resolve',
-                                         help='Split individual exams and rearrange by task number.')
-    merge_parser = subparsers.add_parser('merge', parents=[parent_parser], conflict_handler='resolve',
-                                         help='Merge back into the individual exams.')
-    validate_parser = subparsers.add_parser('validate', parents=[parent_parser], conflict_handler='resolve',
-                                         help='Validate the collection.')
     remove_parser = subparsers.add_parser('remove', parents=[parent_parser], conflict_handler='resolve',
                                           help='Remove a file from the collection.')
+    order_parser = subparsers.add_parser('order-by', parents=[parent_parser], conflict_handler='resolve',
+                                         help='Order the pages in the files by [sheet, task]')
+    validate_parser = subparsers.add_parser('validate', parents=[parent_parser], conflict_handler='resolve',
+                                         help='Validate the collection.')
+
 
     add_parser.add_argument('file', help='The .pdf file containing scanned exams.')
     remove_parser.add_argument('file', help='.The name of the file to be removed.')
 
-    split_parser.add_argument('to', help='folder containing the rearranged files')
+    order_parser.add_argument('by', choices=['sheet', 'task'], help='Order criterion')
+    order_parser.add_argument('to', help='Folder containing the rearranged collection.')
 
     args = main_parser.parse_args()
 
@@ -62,14 +62,15 @@ if __name__ == '__main__':
         elif args.mode == 'remove':
             collection = Collection(args.index)
             collection.remove(args.file)
-        elif args.mode == 'split':
+        elif args.mode == 'order-by':
             collection = Collection(args.index)
             dest = find_free_path(args.to)
-            by_task = collection.reorder_by_task(dest)
-        elif args.mode == 'merge':
-            collection = Collection(args.index)
-            dest = find_free_path(args.to)
-            by_sheet = collection.reorder_by_sheet(dest)
+            if args.by == 'sheet':
+                by_sheet = collection.reorder_by_sheet(dest)
+            elif args.by == 'task':
+                by_task = collection.reorder_by_task(dest)
+            else:
+                logger.error('Unrecognized order criterion {}'.format(args.by))
         elif args.mode == 'validate':
             collection = Collection(args.index)
             collection.validate()
