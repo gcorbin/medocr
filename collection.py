@@ -173,6 +173,7 @@ class Collection:
 
     def validate(self):
         try:
+            self.remove_corrupt_entries()
             self.label_invalid_entries_manually()
             duplicates = {('', 0):[]} # dummy duplicate dict to start the loop
             while len(duplicates.keys()) > 0:
@@ -186,6 +187,36 @@ class Collection:
             self.write()
             raise ki
         self.write()
+
+    def remove_corrupt_entries(self):
+        logger.info('Comparing index and file system.')
+        remove_from_index = []
+        remove_from_index_and_file_system = []
+        for file_name, id_list in self._index.items():
+            file_in_index = os.path.join(self._path, file_name)
+            if os.path.isfile(file_in_index):
+                with open(file_in_index, 'rb') as file:
+                    pdf_reader = PyPDF2.PdfFileReader(file)
+                    num_pages = pdf_reader.getNumPages()
+                    if num_pages != len(id_list):
+                        logger.warning('Index entry {}: Either the index entry or the corresponding file are corrupt: '
+                                       'Pages in file = {}. Pages in index = {}'.format(file_name, num_pages, len(id_list)))
+                        remove_from_index_and_file_system.append(file_name)
+            else:
+                remove_from_index.append(file_name)
+                logger.warning('Index entry {}: The file belonging to the index entry is missing in the file system.'.format(file_name))
+
+        # cannot remove keys from the dict during iteration
+        logger.info('Removing the index entries for the missing files')
+        for item in remove_from_index:
+            logger.info('{}'.format(item))
+            self._index.pop(item)
+        logger.info('Removing the index entry and file for the corrupted entries')
+        for item in remove_from_index_and_file_system:
+            logger.info('{}'.format(item))
+            self._index.pop(item)
+            file_in_index = os.path.join(self._path, item)
+            os.remove(file_in_index)
 
     def label_invalid_entries_manually(self):
         logger.info('Relabel invalid entries.')
@@ -261,6 +292,23 @@ class Collection:
     def write(self):
         index_s = Collection.index_to_serializable(self._index)
         json_utils.write_json(index_s, self._index_file)
+
+    def __contains__(self, item):
+        return item in self._index
+
+    def remove(self, file):
+        if os_utils.is_composite(file):
+            raise RuntimeError('The name of the file to remove cannot be a path.')
+        if file in self._index:
+            self._index.pop(file)
+            file_in_index = os.path.join(self._path, file)
+            if os.path.isfile(file_in_index):
+                os.remove(file_in_index)
+            else:
+                logger.warning('The file to be removed was listed in the index but not present in the file system.')
+            self.write()
+        else:
+            logger.warning('The collection does not contain the file {}'.format(file))
 
     @staticmethod
     def index_to_serializable(index):
