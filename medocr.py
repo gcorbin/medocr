@@ -65,12 +65,7 @@ if __name__ == '__main__':
         elif args.mode == 'order-by':
             collection = Collection(args.index)
             dest = find_free_path(args.to)
-            if args.by == 'sheet':
-                by_sheet = collection.reorder_by_sheet(dest)
-            elif args.by == 'task':
-                by_task = collection.reorder_by_task(dest)
-            else:
-                logger.error('Unrecognized order criterion {}'.format(args.by))
+            new_collection = collection.reorder_by(args.by, dest)
         elif args.mode == 'validate':
             collection = Collection(args.index)
             collection.validate()

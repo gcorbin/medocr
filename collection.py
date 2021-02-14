@@ -134,22 +134,28 @@ class Collection:
                 self.write()
                 os.remove(index_pdf)
 
-    def reorder_by_task(self, dest):
+    def reorder_by(self, by, dest):
+        if by not in ['sheet', 'task']:
+            raise ValueError('The order criterion must be one of "sheet", "task"')
         # gather all pages for each task number
-        pages_by_task_id = dict()
+        pages_by_category = dict()
         for file_name, id_list in self._index.items():
             # logger.info('file name %s, id_list %s', file_name, id_list)
             for file_page, page_id in enumerate(id_list):
                 # logger.info('file page %s, pid %s', file_page, pid)
-                if page_id.task not in pages_by_task_id:
-                    pages_by_task_id[page_id.task] = []
-                pages_by_task_id[page_id.task].append((file_name, file_page, page_id))
+                if by == 'sheet':
+                    page_group = page_id.sheet
+                else: # by == 'task':
+                    page_group = page_id.task
+                if page_group not in pages_by_category:
+                    pages_by_category[page_group] = []
+                pages_by_category[page_group].append((file_name, file_page, page_id))
 
-        by_task = Collection.make_new_collection(dest)
+        by_category = Collection.make_new_collection(dest)
 
-        for tid, page_list in pages_by_task_id.items():
-            file_dest = 'task{}.pdf'.format(tid)
-            by_task._index[file_dest] = []
+        for tid, page_list in pages_by_category.items():
+            file_dest = '{}{}.pdf'.format(by, tid)
+            by_category._index[file_dest] = []
 
             open_infiles = dict()
             merger = PyPDF2.PdfFileMerger()
@@ -161,11 +167,11 @@ class Collection:
                 if in_file_name not in open_infiles:
                     open_infiles[in_file_name] = open(in_file_name, 'rb')
                 merger.append(open_infiles[in_file_name], pages=(file_page, file_page + 1))
-                by_task._index[file_dest].append(page_id)
+                by_category._index[file_dest].append(page_id)
             with open(os.path.join(dest, file_dest), 'wb') as out_file:
                 merger.write(out_file)
             merger.close()
-            by_task.write()
+            by_category.write()
         return Collection(dest)
 
     def reorder_by_sheet(self, dest):
