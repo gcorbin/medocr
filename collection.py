@@ -10,7 +10,7 @@ import tempfile
 
 import os_utils
 import json_utils
-import find_markers
+from find_markers import find_markers, extract_ocr_fields, MarkerException
 from pageid import PageId, page_id_from_ocr
 
 logger = logging.getLogger('medocr.'+__name__)
@@ -83,13 +83,13 @@ class Collection:
                 logger.info('Page number {}'.format(page_num + 1))
                 cv_image = PIL_to_cv2(img)
                 try:
-                    left_marker, right_marker, left_id = find_markers.findMarkers(cv_image)
-                    ocr_fields = find_markers.extract_ocr_fields(cv_image, left_marker, right_marker)
+                    left_marker, right_marker, left_id = find_markers(cv_image)
+                    ocr_fields = extract_ocr_fields(cv_image, left_marker, right_marker)
                     if self._examid is None:
                         self._examid = left_id
                     if self._examid != left_id:
-                        raise find_markers.MarkerException('The marker id {} is different from the exam id {} of this collection'.format(left_id, self._examid))
-                except find_markers.MarkerException as mex:
+                        raise MarkerException('The marker id {} is different from the exam id {} of this collection'.format(left_id, self._examid))
+                except MarkerException as mex:
                     logger.warning(mex)
                     marker_errors += 1
                     self._index[file_name][page_num] = PageId()

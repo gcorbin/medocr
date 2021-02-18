@@ -1,6 +1,3 @@
-import string
-
-
 def compute_checksum(number):
     if not isinstance(number, int) or number < 0 or number > 999:
         raise ValueError('Checksums are only defined for three-digit positive integers, got {}'.format(number))
@@ -16,7 +13,7 @@ def split_checksum(num_with_checksum):
 
 
 def remove_whitespace(ocr_string):
-    return ''.join(ocr_string.split())  # remove all whitespace
+    return ''.join(ocr_string.split())
 
 
 def get_number_from_ocr_string(ocr_string):
