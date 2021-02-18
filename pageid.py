@@ -2,7 +2,7 @@ import string
 
 
 def compute_checksum(number):
-    if number < 0 or number > 999:
+    if not isinstance(number, int) or number < 0 or number > 999:
         raise ValueError('Checksums are only defined for three-digit positive integers, got {}'.format(number))
     # last digit of the sum of digits
     checksum = (number // 100) + (number % 100) // 10 + (number % 10)

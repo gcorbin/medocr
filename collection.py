@@ -122,6 +122,8 @@ class Collection:
                         break
         except Exception as ex:
             logger.critical('An unhandled exception occured during processing of the pdf {}'.format(file_name))
+            self._index.pop(file_name)
+            self.write()
             os.remove(index_pdf)
             raise ex
         else:
