@@ -30,49 +30,47 @@ if __name__ == '__main__':
 
     logger.debug('Parsing arguments')
     parent_parser = argparse.ArgumentParser()
-    parent_parser.add_argument('index', help='The index to work on.')
+    parent_parser.add_argument('collection', help='The collection to work on.')
 
-    main_parser = argparse.ArgumentParser(description='Index pdf files by OCR marks '
-                                                      'and rearrange the pages accordingly.')
+    main_parser = argparse.ArgumentParser(description='This program helps distributing scans of written exams to the correctors.\n'
+                                                      'To create an index of pages, it looks for special identifiers that have to printed on every page.\n'
+                                                      'Pages can be grouped by task id (for the correctors) or by sheet id (for the students)\n')
     subparsers = main_parser.add_subparsers(dest='mode', title='Subcommands',
-                                            description='Select one of the following operations: ')
+                                            description='Select one of the following operations:')
     add_parser = subparsers.add_parser('add', parents=[parent_parser], conflict_handler='resolve',
-                                         help='Create an index from OCR marks.')
+                                       help='Add a .pdf with marked pages into the collection.')
     remove_parser = subparsers.add_parser('remove', parents=[parent_parser], conflict_handler='resolve',
                                           help='Remove a file from the collection.')
     order_parser = subparsers.add_parser('order-by', parents=[parent_parser], conflict_handler='resolve',
-                                         help='Order the pages in the files by [sheet, task]')
+                                         help='Order the pages in the files by [sheet, task].')
     validate_parser = subparsers.add_parser('validate', parents=[parent_parser], conflict_handler='resolve',
-                                         help='Validate the collection.')
+                                            help='Validate the collection.')
 
+    add_parser.add_argument('file', help='The .pdf file to be added.')
+    remove_parser.add_argument('file', help='The file to be removed from the collection.')
 
-    add_parser.add_argument('file', help='The .pdf file containing scanned exams.')
-    remove_parser.add_argument('file', help='.The name of the file to be removed.')
-
-    order_parser.add_argument('by', choices=['sheet', 'task'], help='Order criterion')
-    order_parser.add_argument('to', help='Folder containing the rearranged collection.')
+    order_parser.add_argument('by', choices=['sheet', 'task'], help='The order criterion.')
+    order_parser.add_argument('to', help='The folder containing the rearranged collection.')
 
     args = main_parser.parse_args()
 
     try:
         if args.mode == 'add':
-            collection = Collection.make_or_read_collection(args.index)
+            collection = Collection.make_or_read_collection(args.collection)
             os_utils.validate_file_name(args.file, 'pdf')
             collection.add_pdf(args.file, 'ask')
         elif args.mode == 'remove':
-            collection = Collection(args.index)
+            collection = Collection(args.collection)
             collection.remove(args.file)
         elif args.mode == 'order-by':
-            collection = Collection(args.index)
+            collection = Collection(args.collection)
             dest = find_free_path(args.to)
             new_collection = collection.reorder_by(args.by, dest)
         elif args.mode == 'validate':
-            collection = Collection(args.index)
+            collection = Collection(args.collection)
             collection.validate()
         else:
-            # should never happen, because the argparse module asserts that only the existing choices are possible
-            logger.error('Unrecognized subcommand %s', args.mode)
-            main_parser.print_help()
+            main_parser.print_usage()
 
     except Exception as ex:
         logger.critical('', exc_info=ex)
