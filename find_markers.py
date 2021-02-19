@@ -4,8 +4,7 @@ import argparse
 
 
 class MarkerException(Exception):
-    def __init__(self, message):
-        super().__init__(message)
+    pass
 
 
 def angle_from_three_points(origin, a, b):

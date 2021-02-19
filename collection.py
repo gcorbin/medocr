@@ -6,7 +6,6 @@ import pytesseract
 import numpy as np
 import cv2
 import PyPDF2
-import tempfile
 
 import os_utils
 import json_utils
@@ -19,6 +18,10 @@ logger = logging.getLogger('medocr.'+__name__)
 def PIL_to_cv2(img):
     # convert PIL image first to numpy array and then to the cv format for BGR color channels
     return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+
+
+class DuplicateError(Exception):
+    pass
 
 
 class Collection:
@@ -42,7 +45,7 @@ class Collection:
         file_is_in_index = file_name in self._index
         index_pdf = os.path.join(self._path, file_name)
         if file_is_in_index:
-            logger.info('File %s already exists in the index')
+            logger.info('File %s already exists in the collection.')
             if action == 'ask':
                 action = input('File %s already exists in the index. Select one of the following:\n'
                                '\t(clear) : Overwrite the current file\n'
@@ -57,8 +60,10 @@ class Collection:
             return
 
         if file_is_in_index:
-            logger.info('Overwriting file %s', pdf)
+            logger.info('Overwriting file %s in the collection.', pdf)
             os.remove(index_pdf)
+        else:
+            logger.info('Adding file %s to the collection.', pdf)
         self._index[file_name] = []
         shutil.copyfile(pdf, index_pdf)
 
@@ -66,19 +71,17 @@ class Collection:
         os_utils.mkdir_if_nonexistent(work_folder)
         os_utils.clear_files_with_extension(work_folder, 'jpg')
         dpi = 200
-        logger.info('Converting the file "%s" to images', file_name)
+        logger.info('Converting the file "%s" to images.', file_name)
         images = convert_from_path(index_pdf, dpi=dpi, fmt='jpg', grayscale=True, output_folder=work_folder)
-        '''with tempfile.TemporaryDirectory() as temp_path:
-            images_from_path = convert_from_path(args.file, output_folder=temp_path)'''
-        logger.debug('finished converting')
+        logger.debug('Completed conversion.')
 
+        logger.info('Reading the pages.')
         self._index[file_name] = [None] * len(images)
-
         success = True
         marker_errors = 0
         continue_despite_marker_errors = False
         max_allowed_marker_errors = min(3, len(images))
-        logger.info('max allowed marker errors = {}'.format(max_allowed_marker_errors))
+        logger.debug('Max allowed marker errors = {}.'.format(max_allowed_marker_errors))
         try:
             for page_num, img in enumerate(images):
                 logger.info('Page number {}'.format(page_num + 1))
@@ -96,7 +99,6 @@ class Collection:
                     self._index[file_name][page_num] = PageId()
                 else:
                     tesseract_options = r'--oem 3 --psm 6 outputbase digits'
-                    # tesseract_options = r'-c tessedit_char_blacklist=QO@~'
                     ocr_strings = [pytesseract.image_to_string(f, config=tesseract_options) for f in ocr_fields]
 
                     page_id = page_id_from_ocr(left_id, ocr_strings)
@@ -112,7 +114,7 @@ class Collection:
                                 'Enter "stop" if you do not want to enter this pdf to the collection\n'
                                 'WARNING: Continuing with a wrong pdf will result in a corrupted index.\n'.format(self._examid))
                     while ans not in ['continue', 'stop']:
-                        ans = input('Enter "stop" or "continue"\n')
+                        ans = input('Enter "stop" or "continue".\n')
                     if ans == 'continue':
                         logger.info('Continuing. Treating further marker errors as image recognition errors. ')
                         continue_despite_marker_errors = True
@@ -122,7 +124,7 @@ class Collection:
                         continue_despite_marker_errors = False
                         break
         except Exception as ex:
-            logger.critical('An unhandled exception occured during processing of the pdf {}'.format(file_name))
+            logger.critical('An unhandled exception occurred during processing of the pdf {}.'.format(file_name))
             self._index.pop(file_name)
             self.write()
             os.remove(index_pdf)
@@ -138,6 +140,7 @@ class Collection:
                 os.remove(index_pdf)
 
     def remove(self, file):
+        logger.info('Removing file %s from the collection.', file)
         if os_utils.is_composite(file):
             raise RuntimeError('The name of the file to remove cannot be a path.')
         if file in self._index:
@@ -149,17 +152,16 @@ class Collection:
                 logger.warning('The file to be removed was listed in the index but not present in the file system.')
             self.write()
         else:
-            logger.warning('The collection does not contain the file {}'.format(file))
+            logger.warning('The collection does not contain the file {}.'.format(file))
 
     def reorder_by(self, by, dest):
+        logger.info('Creating the new collection %s, ordered by %s.', dest, by)
         if by not in ['sheet', 'task']:
-            raise ValueError('The order criterion must be one of "sheet", "task"')
-        #  gather all pages for each task number
+            raise ValueError('The order criterion must be one of "sheet", "task".')
+        #  gather all pages for each sheet/task number
         pages_by_category = dict()
         for file_name, id_list in self._index.items():
-            # logger.info('file name %s, id_list %s', file_name, id_list)
             for file_page, page_id in enumerate(id_list):
-                # logger.info('file page %s, pid %s', file_page, pid)
                 if by == 'sheet':
                     page_group = page_id.sheet
                 else:  # by == 'task':
@@ -192,6 +194,7 @@ class Collection:
         return Collection(dest)
 
     def validate(self):
+        logger.info('Validating.')
         try:
             self.remove_corrupt_entries()
             self.label_invalid_entries_manually()
@@ -206,6 +209,10 @@ class Collection:
             logger.warning('Keyboard interrupt during validation. Writing collection.')
             self.write()
             raise ki
+        except DuplicateError as di:
+            logger.warning(di)
+            self.write()
+            raise di
         self.write()
 
     def remove_corrupt_entries(self):
@@ -227,11 +234,11 @@ class Collection:
                 logger.warning('Index entry {}: The file belonging to the index entry is missing in the file system.'.format(file_name))
 
         # cannot remove keys from the dict during iteration
-        logger.info('Removing the index entries for the missing files')
+        logger.info('Removing the index entries for the missing files.')
         for item in remove_from_index:
             logger.info('{}'.format(item))
             self._index.pop(item)
-        logger.info('Removing the index entry and file for the corrupted entries')
+        logger.info('Removing the index entry and file for the corrupted entries.')
         for item in remove_from_index_and_file_system:
             logger.info('{}'.format(item))
             self._index.pop(item)
@@ -245,26 +252,8 @@ class Collection:
                 if page_id is None or not page_id.is_valid():
                     self._index[file_name][page_num] = self.ask_for_label(file_name, page_num)
 
-    def ask_for_label(self, file_name, page_num):
-        PIL_img = convert_from_path(os.path.join(self._path, file_name), first_page=page_num+1, last_page=page_num+1, dpi=100, fmt='jpg', grayscale=True)
-        img = PIL_to_cv2(PIL_img[0])
-        window_name = 'File {}, page {}'.format(file_name, page_num)
-        logger.info(window_name)
-        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-        cv2.resizeWindow(window_name, 600, 800)
-        cv2.imshow(window_name, img)
-        cv2.waitKey(1)
-
-        pid = PageId()
-        while not pid.is_valid():
-            ans = input('Please enter the label for the shown page as "xxxx, yyyy, zzzz"\n')
-            pid = page_id_from_ocr(self._examid, ans.split(','))
-            logger.info('%s', pid)
-        cv2.destroyWindow(window_name)
-        return pid
-
     def find_duplicates(self):
-        logger.info('Find and resolve duplicates.')
+        logger.info('Finding duplicate entries.')
         duplicates = dict()
         pages_by_id = dict()
 
@@ -288,6 +277,7 @@ class Collection:
         return duplicates
 
     def resolve_duplicates(self, duplicates):
+        logger.info('Resolving duplicate entries.')
         for idt, duplist in duplicates.items():
             unchanged = []
             for page_addr in duplist:
@@ -297,9 +287,27 @@ class Collection:
                     unchanged.append(page_addr)
             # we are in trouble, there is a true duplicate
             if len(unchanged) > 1:
-                raise RuntimeError('File {}, page {}\nand file {}, page {}\nhave the same page id.\n'
+                raise DuplicateError('File {}, page {}\nand file {}, page {}\nhave the same page id.\n'
                                    'Try to remove one of the files from the collection.'
                                    ''.format(unchanged[0][0], unchanged[0][1], unchanged[1][0], unchanged[1][1]))
+
+    def ask_for_label(self, file_name, page_num):
+        PIL_img = convert_from_path(os.path.join(self._path, file_name), first_page=page_num+1, last_page=page_num+1, dpi=100, fmt='jpg', grayscale=True)
+        img = PIL_to_cv2(PIL_img[0])
+        window_name = 'File {}, page {}'.format(file_name, page_num)
+        logger.info(window_name)
+        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+        cv2.resizeWindow(window_name, 600, 800)
+        cv2.imshow(window_name, img)
+        cv2.waitKey(1)
+
+        pid = PageId()
+        while not pid.is_valid():
+            ans = input('Please enter the label for the shown page as "xxxx, yyyy, zzzz"\n')
+            pid = page_id_from_ocr(self._examid, ans.split(','))
+            logger.info('%s', pid)
+        cv2.destroyWindow(window_name)
+        return pid
 
     def find_missing_pages(self):
         logger.info('Find missing pages.')
@@ -366,6 +374,7 @@ class Collection:
         if os.path.isdir(path):
             raise OSError('The directory already exists {}'.format(path))
 
+        logger.info('Creating the new collection %s', path)
         os.mkdir(path)
         json_utils.write_json(dict(), Collection.index_file(path))
         return Collection(path)
@@ -375,6 +384,4 @@ class Collection:
         if Collection.is_collection(path):
             logger.info('Reading existing collection %s', path)
             return Collection(path)
-
-        logger.info('Creating the new collection %s', path)
         return Collection.make_new_collection(path)
