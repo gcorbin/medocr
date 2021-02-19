@@ -20,6 +20,10 @@ def PIL_to_cv2(img):
     return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
 
 
+def missing_pages_string(missing):
+    return '\n'.join(['Sheet {}, page {},'.format(i[0], i[1]) for i in missing])
+
+
 class DuplicateError(Exception):
     pass
 
@@ -204,7 +208,7 @@ class Collection:
                 self.resolve_duplicates(duplicates)
             missing = self.find_missing_pages()
             if len(missing) > 0:
-                logger.warning('The following pages are missing: %s', missing)
+                logger.warning('The following pages are missing:\n%s', missing_pages_string(missing))
         except KeyboardInterrupt as ki:
             logger.warning('Keyboard interrupt during validation. Writing collection.')
             self.write()
