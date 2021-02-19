@@ -20,6 +20,7 @@ def PIL_to_cv2(img):
     # convert PIL image first to numpy array and then to the cv format for BGR color channels
     return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
 
+
 class Collection:
     def __init__(self, path):
         if not Collection.is_collection(path):
@@ -71,7 +72,7 @@ class Collection:
             images_from_path = convert_from_path(args.file, output_folder=temp_path)'''
         logger.debug('finished converting')
 
-        self._index[file_name] = [None for i in range(len(images))]
+        self._index[file_name] = [None] * len(images)
 
         success = True
         marker_errors = 0
@@ -136,10 +137,24 @@ class Collection:
                 self.write()
                 os.remove(index_pdf)
 
+    def remove(self, file):
+        if os_utils.is_composite(file):
+            raise RuntimeError('The name of the file to remove cannot be a path.')
+        if file in self._index:
+            self._index.pop(file)
+            file_in_index = os.path.join(self._path, file)
+            if os.path.isfile(file_in_index):
+                os.remove(file_in_index)
+            else:
+                logger.warning('The file to be removed was listed in the index but not present in the file system.')
+            self.write()
+        else:
+            logger.warning('The collection does not contain the file {}'.format(file))
+
     def reorder_by(self, by, dest):
         if by not in ['sheet', 'task']:
             raise ValueError('The order criterion must be one of "sheet", "task"')
-        # gather all pages for each task number
+        #  gather all pages for each task number
         pages_by_category = dict()
         for file_name, id_list in self._index.items():
             # logger.info('file name %s, id_list %s', file_name, id_list)
@@ -147,7 +162,7 @@ class Collection:
                 # logger.info('file page %s, pid %s', file_page, pid)
                 if by == 'sheet':
                     page_group = page_id.sheet
-                else: # by == 'task':
+                else:  # by == 'task':
                     page_group = page_id.task
                 if page_group not in pages_by_category:
                     pages_by_category[page_group] = []
@@ -176,14 +191,11 @@ class Collection:
             by_category.write()
         return Collection(dest)
 
-    def reorder_by_sheet(self, dest):
-        raise NotImplementedError('The function reoder_by_sheet is not implemented yet')
-
     def validate(self):
         try:
             self.remove_corrupt_entries()
             self.label_invalid_entries_manually()
-            duplicates = {('', 0):[]} # dummy duplicate dict to start the loop
+            duplicates = {('', 0): []}  # dummy duplicate dict to start the loop
             while len(duplicates.keys()) > 0:
                 duplicates = self.find_duplicates()
                 self.resolve_duplicates(duplicates)
@@ -295,25 +307,22 @@ class Collection:
         sheets = set()
         pages = set()
         for id_list in self._index.values():
-            for id in id_list:
-                sheets.add(id.sheet)
-                pages.add(id.page)
+            for pid in id_list:
+                sheets.add(pid.sheet)
+                pages.add(pid.page)
 
         # map from sheet ids and page numbers to rows and cols of an array
-        sheet_rows = {s: i for i,s in enumerate(sheets)}
-        page_cols = {p: i for i,p in enumerate(pages)}
+        sheet_rows = {s: i for i, s in enumerate(sheets)}
+        page_cols = {p: i for i, p in enumerate(pages)}
         sheets_x_pages = np.zeros((len(sheet_rows), len(page_cols)))
         # find all combinations of sheet id and page numbers that exist in the index
         for id_list in self._index.values():
-            for id in id_list:
-                sheets_x_pages[sheet_rows[id.sheet], page_cols[id.page]] = 1
+            for pid in id_list:
+                sheets_x_pages[sheet_rows[pid.sheet], page_cols[pid.page]] = 1
         # all other combinations are missing
         missing = [(s, p) for s in sheets for p in pages if sheets_x_pages[sheet_rows[s], page_cols[p]] == 0]
         # this algorithm will not report a page missing if it misses in each sheet
         return missing
-
-    def is_complete(self):
-        pass
 
     def write(self):
         index_s = Collection.index_to_serializable(self._index)
@@ -321,20 +330,6 @@ class Collection:
 
     def __contains__(self, item):
         return item in self._index
-
-    def remove(self, file):
-        if os_utils.is_composite(file):
-            raise RuntimeError('The name of the file to remove cannot be a path.')
-        if file in self._index:
-            self._index.pop(file)
-            file_in_index = os.path.join(self._path, file)
-            if os.path.isfile(file_in_index):
-                os.remove(file_in_index)
-            else:
-                logger.warning('The file to be removed was listed in the index but not present in the file system.')
-            self.write()
-        else:
-            logger.warning('The collection does not contain the file {}'.format(file))
 
     @staticmethod
     def index_to_serializable(index):
