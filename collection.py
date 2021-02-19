@@ -288,17 +288,19 @@ class Collection:
             # we are in trouble, there is a true duplicate
             if len(unchanged) > 1:
                 raise DuplicateError('File {}, page {}\nand file {}, page {}\nhave the same page id.\n'
-                                   'Try to remove one of the files from the collection.'
-                                   ''.format(unchanged[0][0], unchanged[0][1], unchanged[1][0], unchanged[1][1]))
+                                     'Try to remove one of the files from the collection.'
+                                     ''.format(unchanged[0][0], unchanged[0][1], unchanged[1][0], unchanged[1][1]))
 
     def ask_for_label(self, file_name, page_num):
         PIL_img = convert_from_path(os.path.join(self._path, file_name), first_page=page_num+1, last_page=page_num+1, dpi=100, fmt='jpg', grayscale=True)
         img = PIL_to_cv2(PIL_img[0])
-        window_name = 'File {}, page {}'.format(file_name, page_num)
-        logger.info(window_name)
-        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-        cv2.resizeWindow(window_name, 600, 800)
-        cv2.imshow(window_name, img)
+        window_title = 'File {}, page {}'.format(file_name, page_num)
+        logger.info(window_title)
+        cv2.namedWindow('askforlabel', cv2.WINDOW_NORMAL)
+        cv2.setWindowTitle('askforlabel', window_title)
+        cv2.moveWindow('askforlabel', 0, 0)
+        cv2.resizeWindow('askforlabel', 600, 800)
+        cv2.imshow('askforlabel', img)
         cv2.waitKey(1)
 
         pid = PageId()
@@ -306,7 +308,7 @@ class Collection:
             ans = input('Please enter the label for the shown page as "xxxx, yyyy, zzzz"\n')
             pid = page_id_from_ocr(self._examid, ans.split(','))
             logger.info('%s', pid)
-        cv2.destroyWindow(window_name)
+        cv2.destroyWindow(window_title)
         return pid
 
     def find_missing_pages(self):
