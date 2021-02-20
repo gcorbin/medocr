@@ -100,7 +100,9 @@ class Collection:
                     logger.info('Page id = %s', page_id)
                     self._index[file_name][page_num] = page_id
 
-                if not continue_despite_marker_errors and marker_errors >= max_allowed_marker_errors:
+                if not continue_despite_marker_errors \
+                        and marker_errors >= max_allowed_marker_errors\
+                        and page_num <= 10:
                     logger.warning('Encountered at least {} pages with either unidentifiable markers or markers with'
                                    'the wrong id. The current exam id is {}.'.format(max_allowed_marker_errors, self._examid))
 
