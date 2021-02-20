@@ -199,6 +199,7 @@ class Collection:
 
     def validate(self):
         logger.info('Validating.')
+        self.make_page_display_window()
         try:
             self.remove_corrupt_entries()
             self.label_invalid_entries_manually()
@@ -211,13 +212,13 @@ class Collection:
                 logger.warning('The following pages are missing:\n%s', missing_pages_string(missing))
         except KeyboardInterrupt as ki:
             logger.warning('Keyboard interrupt during validation. Writing collection.')
-            self.write()
             raise ki
         except DuplicateError as di:
             logger.warning(di)
-            self.write()
             raise di
-        self.write()
+        finally:
+            self.destroy_page_display_window()
+            self.write()
 
     def remove_corrupt_entries(self):
         logger.info('Comparing index and file system.')
@@ -300,20 +301,27 @@ class Collection:
         img = PIL_to_cv2(PIL_img[0])
         window_title = 'File {}, page {}'.format(file_name, page_num)
         logger.info(window_title)
-        cv2.namedWindow('askforlabel', cv2.WINDOW_NORMAL)
-        cv2.setWindowTitle('askforlabel', window_title)
-        cv2.moveWindow('askforlabel', 0, 0)
-        cv2.resizeWindow('askforlabel', 600, 800)
-        cv2.imshow('askforlabel', img)
-        cv2.waitKey(1)
+        self.display_page(img, window_title)
 
         pid = PageId()
         while not pid.is_valid():
             ans = input('Please enter the label for the shown page as "xxxx, yyyy, zzzz"\n')
             pid = page_id_from_ocr(self._examid, ans.split(','))
             logger.info('%s', pid)
-        cv2.destroyWindow(window_title)
         return pid
+
+    def make_page_display_window(self):
+        cv2.namedWindow('pagedisplay', cv2.WINDOW_NORMAL)
+        cv2.moveWindow('pagedisplay', 0, 0)
+        cv2.resizeWindow('pagedisplay', 600, 800)
+
+    def display_page(self, img, title):
+        cv2.imshow('pagedisplay', img)
+        cv2.setWindowTitle('pagedisplay', title)
+        cv2.waitKey(1)
+
+    def destroy_page_display_window(self):
+        cv2.destroyWindow('pagedisplay')
 
     def find_missing_pages(self):
         logger.info('Find missing pages.')
