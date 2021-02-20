@@ -6,6 +6,7 @@ import pytesseract
 import numpy as np
 import cv2
 import PyPDF2
+import time
 
 import os_utils
 import json_utils
@@ -47,7 +48,7 @@ class Collection:
     def add_pdf(self, pdf, action='clear'):
         folder, file_name = os.path.split(pdf)
         file_is_in_index = file_name in self._index
-        index_pdf = os.path.join(self._path, file_name)
+        index_pdf = self.file_in_collection(file_name)
         if file_is_in_index:
             logger.info('File %s already exists in the collection.')
             if action == 'ask':
@@ -71,13 +72,7 @@ class Collection:
         self._index[file_name] = []
         shutil.copyfile(pdf, index_pdf)
 
-        work_folder = os.path.join(self._path, 'work')
-        os_utils.mkdir_if_nonexistent(work_folder)
-        os_utils.clear_files_with_extension(work_folder, 'jpg')
-        dpi = 200
-        logger.info('Converting the file "%s" to images.', file_name)
-        images = convert_from_path(index_pdf, dpi=dpi, fmt='jpg', grayscale=True, output_folder=work_folder)
-        logger.debug('Completed conversion.')
+        images = self.convert_pdf_to_images(file_name)
 
         logger.info('Reading the pages.')
         self._index[file_name] = [None] * len(images)
@@ -88,15 +83,12 @@ class Collection:
         logger.debug('Max allowed marker errors = {}.'.format(max_allowed_marker_errors))
         try:
             for page_num, img in enumerate(images):
-                logger.info('Page number {}'.format(page_num + 1))
+                logger.info('Page {} of {}'.format(page_num + 1, len(images)))
                 cv_image = PIL_to_cv2(img)
                 try:
                     left_marker, right_marker, left_id = find_markers(cv_image)
                     ocr_fields = extract_ocr_fields(cv_image, left_marker, right_marker)
-                    if self._examid is None:
-                        self._examid = left_id
-                    if self._examid != left_id:
-                        raise MarkerException('The marker id {} is different from the exam id {} of this collection'.format(left_id, self._examid))
+                    self.set_or_check_exam_id(left_id)
                 except MarkerException as mex:
                     logger.warning(mex)
                     marker_errors += 1
@@ -104,7 +96,6 @@ class Collection:
                 else:
                     tesseract_options = r'--oem 3 --psm 6 outputbase digits'
                     ocr_strings = [pytesseract.image_to_string(f, config=tesseract_options) for f in ocr_fields]
-
                     page_id = page_id_from_ocr(left_id, ocr_strings)
                     logger.info('Page id = %s', page_id)
                     self._index[file_name][page_num] = page_id
@@ -142,6 +133,33 @@ class Collection:
                 self._index.pop(file_name)
                 self.write()
                 os.remove(index_pdf)
+
+    def convert_pdf_to_images(self, file_name):
+        work_folder = self.file_in_collection('work')
+        os_utils.mkdir_if_nonexistent(work_folder)
+        os_utils.clear_files_with_extension(work_folder, 'jpg')
+        dpi = 200
+        logger.info('Converting the file "%s" to images.', file_name)
+        file_in_collection = self.file_in_collection(file_name)
+
+        # estimate the time for conversion
+        start_time = time.time()
+        convert_from_path(file_in_collection, first_page=1, last_page=1, dpi=dpi, fmt='jpg', grayscale=True, output_folder=work_folder)
+        time_elapsed = time.time() - start_time
+        pdf_reader = PyPDF2.PdfFileReader(file_in_collection)
+        num_pages = pdf_reader.getNumPages()
+        logger.info('Estimated time for conversion is {:.0f} seconds.'.format(num_pages * time_elapsed))
+
+        images = convert_from_path(file_in_collection, dpi=dpi, fmt='jpg', grayscale=True, output_folder=work_folder)
+        logger.debug('Completed conversion.')
+        return images
+
+    def set_or_check_exam_id(self, exam_id_input):
+        if self._examid is None:
+            self._examid = exam_id_input
+        if self._examid != exam_id_input:
+            raise MarkerException(
+                'The marker id {} is different from the exam id {} of this collection'.format(exam_id_input, self._examid))
 
     def remove(self, file):
         logger.info('Removing file %s from the collection.', file)
@@ -352,6 +370,11 @@ class Collection:
 
     def __contains__(self, item):
         return item in self._index
+
+    def file_in_collection(self, file_name):
+        if os_utils.is_composite(file_name):
+            raise RuntimeError('The name of the file in the collection cannot be a path: %s.', file_name)
+        return os.path.join(self._path, file_name)
 
     @staticmethod
     def index_to_serializable(index):
