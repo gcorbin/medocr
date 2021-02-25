@@ -25,6 +25,15 @@ def missing_pages_string(missing):
     return '\n'.join(['Sheet {}, page {},'.format(i[0], i[1]) for i in missing])
 
 
+def change_log_to_string(change_log):
+    rep = ''
+    for file_name, pages in change_log.items():
+        rep = rep + '{}:\n'.format(file_name)
+        for page, labels in pages.items():
+            rep = rep + '\tSeite {}: {} -> {}\n'.format(page+1, labels[0], labels[1])
+    return rep
+
+
 class DuplicateError(Exception):
     pass
 
@@ -220,16 +229,18 @@ class Collection:
     def validate(self):
         logger.info('Validating.')
         self.make_page_display_window()
+        missing = []
+        rem_i = []
+        rem_i_fs = []
+        change_log = {}
         try:
-            self.remove_corrupt_entries()
-            self.label_invalid_entries_manually()
+            rem_i, rem_i_fs = self.remove_corrupt_entries()
+            self.label_invalid_entries_manually(change_log)
             duplicates = {('', 0): []}  # dummy duplicate dict to start the loop
             while len(duplicates.keys()) > 0:
                 duplicates = self.find_duplicates()
-                self.resolve_duplicates(duplicates)
+                self.resolve_duplicates(duplicates, change_log)
             missing = self.find_missing_pages()
-            if len(missing) > 0:
-                logger.warning('The following pages are missing:\n%s', missing_pages_string(missing))
         except KeyboardInterrupt as ki:
             logger.warning('Keyboard interrupt during validation. Writing collection.')
             raise ki
@@ -238,6 +249,16 @@ class Collection:
             raise di
         finally:
             self.destroy_page_display_window()
+            if len(rem_i) > 0:
+                logger.warning('The following files were not found in the file system'
+                               ' and have been removed from the index:\n%s','\n'.join(rem_i))
+            if len(rem_i_fs) > 0:
+                logger.warning('The following files were corrupted'
+                               ' and have been removed from the index and file system:\n%s','\n'.join(rem_i_fs))
+            if len(missing) > 0:
+                logger.warning('The following pages are missing:\n%s', missing_pages_string(missing))
+            if len(change_log) > 0:
+                logger.info('The labels for the following pages have changed:\n%s', change_log_to_string(change_log))
             self.write()
 
     def remove_corrupt_entries(self):
@@ -269,13 +290,15 @@ class Collection:
             self._index.pop(item)
             file_in_index = os.path.join(self._path, item)
             os.remove(file_in_index)
+        return remove_from_index, remove_from_index_and_file_system
 
-    def label_invalid_entries_manually(self):
+    def label_invalid_entries_manually(self, change_log):
         logger.info('Relabel invalid entries.')
         for file_name, id_list in self._index.items():
             for page_num, page_id in enumerate(id_list):
                 if page_id is None or not page_id.is_valid():
-                    self._index[file_name][page_num] = self.ask_for_label(file_name, page_num)
+                    new_label = self.ask_for_label(file_name, page_num)
+                    self.update_index_and_change_log(change_log, file_name, page_num, new_label)
 
     def find_duplicates(self):
         logger.info('Finding duplicate entries.')
@@ -301,25 +324,26 @@ class Collection:
                     pages_by_id[idt] = (file_name, page_num)
         return duplicates
 
-    def resolve_duplicates(self, duplicates):
+    def resolve_duplicates(self, duplicates, change_log):
         logger.info('Resolving duplicate entries.')
         for idt, duplist in duplicates.items():
             unchanged = []
             for page_addr in duplist:
                 pid = self.ask_for_label(page_addr[0], page_addr[1])
-                self._index[page_addr[0]][page_addr[1]] = pid
+                self.update_index_and_change_log(change_log, page_addr[0], page_addr[1], pid)
+                #self._index[page_addr[0]][page_addr[1]] = pid
                 if pid.tuple() == idt:
                     unchanged.append(page_addr)
             # we are in trouble, there is a true duplicate
             if len(unchanged) > 1:
                 raise DuplicateError('File {}, page {}\nand file {}, page {}\nhave the same page id.\n'
                                      'Try to remove one of the files from the collection.'
-                                     ''.format(unchanged[0][0], unchanged[0][1], unchanged[1][0], unchanged[1][1]))
+                                     ''.format(unchanged[0][0], unchanged[0][1]+1, unchanged[1][0], unchanged[1][1]+1))
 
     def ask_for_label(self, file_name, page_num):
         PIL_img = convert_from_path(os.path.join(self._path, file_name), first_page=page_num+1, last_page=page_num+1, dpi=100, fmt='jpg', grayscale=True)
         img = PIL_to_cv2(PIL_img[0])
-        window_title = 'File {}, page {}'.format(file_name, page_num)
+        window_title = 'File {}, page {}'.format(file_name, page_num+1)
         logger.info(window_title)
         self.display_page(img, window_title)
 
@@ -329,6 +353,18 @@ class Collection:
             pid = page_id_from_ocr(self._examid, ans.split(','))
             logger.info('%s', pid)
         return pid
+
+    def update_index_and_change_log(self, change_log, file_name, page_num, new_label):
+        if not file_name in change_log:
+            change_log[file_name] = dict()
+        if page_num in change_log[file_name]:
+            old_label = change_log[file_name][page_num][0]
+        else:
+            old_label = self._index[file_name][page_num]
+
+        self._index[file_name][page_num] = new_label
+        change_log[file_name][page_num] = (old_label, new_label)
+        #logger.info('Changed label for file {}, page {} to {}'.format(file_name, page_num, new_label))
 
     def make_page_display_window(self):
         cv2.namedWindow('pagedisplay', cv2.WINDOW_NORMAL)
