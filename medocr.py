@@ -52,6 +52,9 @@ if __name__ == '__main__':
     order_parser.add_argument('by', choices=['sheet', 'task'], help='The order criterion.')
     order_parser.add_argument('to', help='The folder containing the rearranged collection.')
 
+    validate_parser.add_argument('--extra-pages', '-xp', nargs='+', type=int, default=(),
+                                 help='Exclude extra pages from the check for missing pages.')
+
     args = main_parser.parse_args()
 
     try:
@@ -68,7 +71,7 @@ if __name__ == '__main__':
             new_collection = collection.reorder_by(args.by, dest)
         elif args.mode == 'validate':
             collection = Collection(args.collection)
-            collection.validate()
+            collection.validate(args.extra_pages)
         else:
             main_parser.print_usage()
 

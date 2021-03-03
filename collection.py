@@ -229,7 +229,7 @@ class Collection:
             by_category.write()
         return Collection(dest)
 
-    def validate(self):
+    def validate(self, extra_pages):
         logger.info('Validating.')
         self.make_page_display_window()
         missing = []
@@ -243,7 +243,7 @@ class Collection:
             while len(duplicates.keys()) > 0:
                 duplicates = self.find_duplicates()
                 self.resolve_duplicates(duplicates, change_log)
-            missing = self.find_missing_pages()
+            missing = self.find_missing_pages(extra_pages)
         except KeyboardInterrupt as ki:
             logger.warning('Keyboard interrupt during validation. Writing collection.')
             raise ki
@@ -382,7 +382,7 @@ class Collection:
     def destroy_page_display_window(self):
         cv2.destroyWindow('pagedisplay')
 
-    def find_missing_pages(self):
+    def find_missing_pages(self, extra_pages=()):
         logger.info('Find missing pages.')
         # find all unique sheet ids and page numbers
         sheets = set()
@@ -390,7 +390,8 @@ class Collection:
         for id_list in self._index.values():
             for pid in id_list:
                 sheets.add(pid.sheet)
-                pages.add(pid.page)
+                if pid.page not in extra_pages:
+                    pages.add(pid.page)
 
         # map from sheet ids and page numbers to rows and cols of an array
         sheet_rows = {s: i for i, s in enumerate(sheets)}
@@ -399,7 +400,8 @@ class Collection:
         # find all combinations of sheet id and page numbers that exist in the index
         for id_list in self._index.values():
             for pid in id_list:
-                sheets_x_pages[sheet_rows[pid.sheet], page_cols[pid.page]] = 1
+                if pid.page not in extra_pages:
+                    sheets_x_pages[sheet_rows[pid.sheet], page_cols[pid.page]] = 1
         # all other combinations are missing
         missing = [(s, p) for s in sheets for p in pages if sheets_x_pages[sheet_rows[s], page_cols[p]] == 0]
         # this algorithm will not report a page missing if it misses in each sheet
