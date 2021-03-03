@@ -58,7 +58,7 @@ Die eingescannten Dokumente kann man dann mit dem Befehl
 erkennen und indizieren. 
 <collection> ist der Pfad der Ausgabe und <file> ist das .pdf Dokument was indiziert werden soll. 
 Dabei passieren mehrere Dinge: 
-- Wenn der angegebene Pfad nicht existiert, wird ein neuer Ordner angelegt und eine neue index Datei angelegt
+- Wenn der angegebene Pfad nicht existiert, wird eine neue Sammlung angelegt (ein Ordner in dem eine Datei mit dem Namen _index_ enthalten ist)
 - Die Datei <file> wird in den Ordner kopiert
 - Die index Datei wird im Ausgabeordner aktualisiert. Diese enthält die erkannte Marker-Information im json Format.
 
@@ -66,7 +66,7 @@ Man kann mehrere .pdfs dem gleichen Ordner hinzufügen.
 
 #### Validieren
 Bei der Indizierung gibt es immer Seiten, die nicht erkannt werden. 
-Deshalb sollte man **immer** validieren! 
+Deshalb sollte man **immer** validieren, nachdem man alle Seiten zur Sammlung hinzugefügt hat! 
 
 > python3 medocr.py validate <collection> 
 
@@ -80,9 +80,21 @@ Bei der Validierung werden folgende Dinge überprüft:
 
 Mit dem Befehl
 
-> python medocr.py order-by <collection> task <new-collection>
+> python3 medocr.py order-by <collection> task <collection-task>
 
-wird die neue Sammlung <new-collection> angelegt, in der für jede Aufgabe ein eigenes .pdf existiert. 
+wird die neue Sammlung <collection-task> angelegt, in der für jede Aufgabe ein eigenes .pdf existiert. 
+Diese Dateien können dann an die Helfer:innen weitergegeben werden. 
 
+Vorher bitte immer **validieren!!!**
 
 ### Einsicht
+
+- Die korrigierten, nach Aufgabe gruppierten .pdf Dokumente in einen Ordner <collection-corr> zusammenfügen.
+- Die Datei _index_ aus <collection-task> in diesen Ordner kopieren
+- Den Befehl 
+
+> python3 medocr.py order-by <collection-corr> sheet <collection-sheet>
+
+ausführen 
+
+
