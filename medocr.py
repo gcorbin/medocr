@@ -54,7 +54,6 @@ if __name__ == '__main__':
 
     validate_parser.add_argument('--extra-pages', '-xp', nargs='+', type=int, default=(),
                                  help='Exclude extra pages from the check for missing pages.')
-
     args = main_parser.parse_args()
 
     try:

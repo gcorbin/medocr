@@ -213,7 +213,7 @@ class Collection:
             if by == 'sheet':
                 sorted_page_list = sorted(page_list, key=lambda paddr: paddr[2].page)
             else: # by == 'task':
-                sorted_page_list = sorted(page_list, key=lambda paddr: paddr[2].sheet)
+                sorted_page_list = sorted(page_list, key=lambda paddr: (paddr[2].sheet, paddr[2].page))
             for page_addr in sorted_page_list:
                 file_name = page_addr[0]
                 file_page = page_addr[1]
