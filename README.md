@@ -47,8 +47,42 @@ Dieses Format ist auch von der Druckerei am RHRK so gewünscht.
 
 **Hinweis:** Wenn die Studierenden auf die Rückseite schreiben dürfen, muss in der Vorlage die Option für bedruckte Rückseiten aktiviert sein. 
 
-### Korrektur
+### Vor der Korrektur
 
+#### Indizieren
+Man kann die Klausuren immer Paketweise einscannen lassen. 
+Die eingescannten Dokumente kann man dann mit dem Befehl
+
+> python3 medocr.py add <collection> <file>
+
+erkennen und indizieren. 
+<collection> ist der Pfad der Ausgabe und <file> ist das .pdf Dokument was indiziert werden soll. 
+Dabei passieren mehrere Dinge: 
+- Wenn der angegebene Pfad nicht existiert, wird ein neuer Ordner angelegt und eine neue index Datei angelegt
+- Die Datei <file> wird in den Ordner kopiert
+- Die index Datei wird im Ausgabeordner aktualisiert. Diese enthält die erkannte Marker-Information im json Format.
+
+Man kann mehrere .pdfs dem gleichen Ordner hinzufügen. 
+
+#### Validieren
+Bei der Indizierung gibt es immer Seiten, die nicht erkannt werden. 
+Deshalb sollte man **immer** validieren! 
+
+> python3 medocr.py validate <collection> 
+
+Bei der Validierung werden folgende Dinge überprüft:
+- Stimmt die Anzahl der Seiten im Index mit der Anzahl der Seiten in den .pdfs überein?
+- Für jede Seite: Wurde die Seite korrekt erkannt? Wenn nicht, ist eine Nutzereingabe erforderlich. 
+- Gibt es doppelt vorkommende Seiten? (Dies kann durch eine falsche Eingabe im vorigen Schritt passieren, oder durch eine falsch Erkannte Seite). Bei doppelten Seiten ist wieder eine Eingabe erforderlich.
+- Fehlen Seiten? Fehlende Seiten werden einfach nur angezeigt. 
+
+#### Sortieren nach Aufgabe
+
+Mit dem Befehl
+
+> python medocr.py order-by <collection> task <new-collection>
+
+wird die neue Sammlung <new-collection> angelegt, in der für jede Aufgabe ein eigenes .pdf existiert. 
 
 
 ### Einsicht
