@@ -204,14 +204,17 @@ class Collection:
                 pages_by_category[page_group].append((file_name, file_page, page_id))
 
         by_category = Collection.make_new_collection(dest)
-
-        for tid, page_list in pages_by_category.items():
-            file_dest = '{}{}.pdf'.format(by, tid)
+        for page_group, page_list in pages_by_category.items():
+            file_dest = '{}{}.pdf'.format(by, page_group)
             by_category._index[file_dest] = []
 
             open_infiles = dict()
             merger = PyPDF2.PdfFileMerger()
-            for page_addr in page_list:
+            if by == 'sheet':
+                sorted_page_list = sorted(page_list, key=lambda paddr: paddr[2].page)
+            else: # by == 'task':
+                sorted_page_list = sorted(page_list, key=lambda paddr: paddr[2].sheet)
+            for page_addr in sorted_page_list:
                 file_name = page_addr[0]
                 file_page = page_addr[1]
                 page_id = page_addr[2]
