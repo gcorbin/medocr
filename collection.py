@@ -264,7 +264,8 @@ class Collection:
         change_log = {}
         try:
             rem_i, rem_i_fs = self.remove_corrupt_entries()
-            self.label_invalid_entries_manually(change_log)
+            invalids = self.find_invalid_entries()
+            self.label_invalid_entries_manually(invalids, change_log)
             duplicates = {('', 0): []}  # dummy duplicate dict to start the loop
             while len(duplicates.keys()) > 0:
                 duplicates = self.find_duplicates()
@@ -278,16 +279,18 @@ class Collection:
             raise di
         finally:
             self.destroy_page_display_window()
+            # The order of these outputs is reverse to the order of the validation step
+            # The most serious warnings should appear at the bottom.
+            if len(change_log) > 0:
+                logger.info('The labels for the following pages have changed:\n%s', change_log_to_string(change_log))
+            if len(missing) > 0:
+                logger.warning('The following pages are missing:\n%s', missing_pages_string(missing))
             if len(rem_i) > 0:
                 logger.warning('The following files were not found in the file system'
                                ' and have been removed from the index:\n%s','\n'.join(rem_i))
             if len(rem_i_fs) > 0:
                 logger.warning('The following files were corrupted'
                                ' and have been removed from the index and file system:\n%s','\n'.join(rem_i_fs))
-            if len(missing) > 0:
-                logger.warning('The following pages are missing:\n%s', missing_pages_string(missing))
-            if len(change_log) > 0:
-                logger.info('The labels for the following pages have changed:\n%s', change_log_to_string(change_log))
             self.write()
 
     def remove_corrupt_entries(self):
@@ -321,13 +324,23 @@ class Collection:
             os.remove(file_in_index)
         return remove_from_index, remove_from_index_and_file_system
 
-    def label_invalid_entries_manually(self, change_log):
-        logger.info('Relabel invalid entries.')
+    def find_invalid_entries(self):
+        invalids = []
+        logger.info('Finding invalid entries.')
         for file_name, id_list in self._index.items():
             for page_num, page_id in enumerate(id_list):
                 if page_id is None or not page_id.is_valid():
-                    new_label = self.ask_for_label(file_name, page_num)
-                    self.update_index_and_change_log(change_log, file_name, page_num, new_label)
+                    invalids.append((file_name, page_num))
+        return invalids
+
+    def label_invalid_entries_manually(self, invalids, change_log):
+        logger.info('Relabel invalid entries.')
+        for i, iv in enumerate(invalids):
+            file_name = iv[0]
+            page_num = iv[1]
+            print('Invalid entry {} / {}: '.format(i+1, len(invalids)), end='')
+            new_label = self.ask_for_label(file_name, page_num)
+            self.update_index_and_change_log(change_log, file_name, page_num, new_label)
 
     def find_duplicates(self):
         logger.info('Finding duplicate entries.')
@@ -355,32 +368,37 @@ class Collection:
 
     def resolve_duplicates(self, duplicates, change_log):
         logger.info('Resolving duplicate entries.')
-        for idt, duplist in duplicates.items():
+        # for idt, duplist in duplicates.items():
+        for i, idt in enumerate(duplicates.keys()):
+            print('Duplicate entry {} / {}'.format(i+1, len(duplicates.keys())))
+            duplist = duplicates[idt]
             unchanged = []
             for page_addr in duplist:
                 pid = self.ask_for_label(page_addr[0], page_addr[1])
                 self.update_index_and_change_log(change_log, page_addr[0], page_addr[1], pid)
-                #self._index[page_addr[0]][page_addr[1]] = pid
+                # self._index[page_addr[0]][page_addr[1]] = pid
                 if pid.tuple() == idt:
                     unchanged.append(page_addr)
             # we are in trouble, there is a true duplicate
             if len(unchanged) > 1:
-                raise DuplicateError('File {}, page {}\nand file {}, page {}\nhave the same page id.\n'
-                                     'Try to remove one of the files from the collection.'
+                raise DuplicateError('File {}, page {} and file {}, page {} have the same page id.\n'
+                                     'Try to do the validation again if you think the error comes from a previous typo.\n'
+                                     'Else, try to remove one of the files from the collection.'
                                      ''.format(unchanged[0][0], unchanged[0][1]+1, unchanged[1][0], unchanged[1][1]+1))
 
     def ask_for_label(self, file_name, page_num):
         PIL_img = convert_from_path(os.path.join(self._path, file_name), first_page=page_num+1, last_page=page_num+1, dpi=100, fmt='jpg', grayscale=True)
         img = PIL_to_cv2(PIL_img[0])
         window_title = 'File {}, page {}'.format(file_name, page_num+1)
-        logger.info(window_title)
+        print(window_title)
+        # logger.debug('Relabel %s ', window_title)
         self.display_page(img, window_title)
 
         pid = PageId()
         while not pid.is_valid():
             ans = input('Please enter the label for the shown page as "xxxx, yyyy, zzzz"\n')
             pid = page_id_from_ocr(self._examid, ans.split(','))
-            logger.info('%s', pid)
+        # logger.debug('%s', pid)
         return pid
 
     def update_index_and_change_log(self, change_log, file_name, page_num, new_label):
@@ -393,7 +411,7 @@ class Collection:
 
         self._index[file_name][page_num] = new_label
         change_log[file_name][page_num] = (old_label, new_label)
-        #logger.info('Changed label for file {}, page {} to {}'.format(file_name, page_num, new_label))
+        logger.debug('Changed label for file {}, page {} to {}'.format(file_name, page_num, new_label))
 
     def make_page_display_window(self):
         cv2.namedWindow('pagedisplay', cv2.WINDOW_NORMAL)
