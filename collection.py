@@ -34,6 +34,12 @@ def change_log_to_string(change_log):
     return rep
 
 
+def print_waitbar(progress, total=100, message=''):
+    total = max(1, total)
+    print('\r                                            \r'
+          '{}: {}/{}, {:02.0f}%'.format(message, progress, total, progress*100/total), end='')
+
+
 class DuplicateError(Exception):
     pass
 
@@ -207,6 +213,7 @@ class Collection:
         for page_group, page_list in pages_by_category.items():
             file_dest = '{}{}.pdf'.format(by, page_group)
             by_category._index[file_dest] = []
+            logger.info('Creating file %s', file_dest)
 
             open_infiles = dict()
             merger = PyPDF2.PdfFileMerger()
@@ -214,7 +221,8 @@ class Collection:
                 sorted_page_list = sorted(page_list, key=lambda paddr: paddr[2].page)
             else: # by == 'task':
                 sorted_page_list = sorted(page_list, key=lambda paddr: (paddr[2].sheet, paddr[2].page))
-            for page_addr in sorted_page_list:
+            for i, page_addr in enumerate(sorted_page_list):
+                print_waitbar(i, len(sorted_page_list), 'Page')
                 file_name = page_addr[0]
                 file_page = page_addr[1]
                 page_id = page_addr[2]
@@ -223,6 +231,8 @@ class Collection:
                     open_infiles[in_file_name] = open(in_file_name, 'rb')
                 merger.append(open_infiles[in_file_name], pages=(file_page, file_page + 1))
                 by_category._index[file_dest].append(page_id)
+            print_waitbar(len(sorted_page_list), len(sorted_page_list), 'Page')
+            print()
             with open(os.path.join(dest, file_dest), 'wb') as out_file:
                 merger.write(out_file)
             merger.close()
