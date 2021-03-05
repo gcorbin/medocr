@@ -93,7 +93,7 @@ class Collection:
         try:
             for page_num, img in enumerate(images):
                 logger.info('Page {} of {}'.format(page_num + 1, len(images)))
-                cv_image = PIL_to_cv2(img)
+                cv_image = cv2.imread(img)
                 try:
                     left_marker, right_marker, left_id = find_markers(cv_image)
                     ocr_fields = extract_ocr_fields(cv_image, left_marker, right_marker)
@@ -161,7 +161,7 @@ class Collection:
         num_pages = pdf_reader.getNumPages()
         logger.info('Estimated time for conversion is {:.0f} seconds.'.format(num_pages * time_elapsed))
 
-        images = convert_from_path(file_in_collection, dpi=dpi, fmt='jpg', grayscale=True, output_folder=work_folder)
+        images = convert_from_path(file_in_collection, dpi=dpi, fmt='jpg', grayscale=True, output_folder=work_folder, paths_only=True)
         logger.debug('Completed conversion.')
         return images
 
