@@ -34,11 +34,24 @@ def change_log_to_string(change_log):
     return rep
 
 
-def print_waitbar(progress, total=100, message=''):
+'''def print_waitbar(progress, total=100, message=''):
     total = max(1, total)
     print('\r                                            \r'
-          '{}: {}/{}, {:02.0f}%'.format(message, progress, total, progress*100/total), end='')
+          '{}: {}/{}, {:02.0f}%'.format(message, progress, total, progress*100/total), end='')'''
 
+
+class Waitbar:
+    def __init__(self, total=100, message=''):
+        self._total = max(1, total)
+        self._message = message
+
+    def print(self, progress):
+        print('\r                                            \r'
+              '{}: {}/{}, {:02.0f}%'.format(self._message, progress, self._total, progress * 100 / self._total), end='')
+
+    def done(self):
+        self.print(self._total)
+        print()
 
 class DuplicateError(Exception):
     pass
@@ -65,9 +78,9 @@ class Collection:
         file_is_in_index = file_name in self._index
         index_pdf = self.file_in_collection(file_name)
         if file_is_in_index:
-            logger.info('File %s already exists in the collection.')
+            logger.info('File %s already exists in the collection.', file_name)
             if action == 'ask':
-                action = input('File %s already exists in the index. Select one of the following:\n'
+                action = input('Select one of the following:\n'
                                '\t(clear) : Overwrite the current file\n'
                                '\t(skip) : Do nothing for this file\n')
         else:
@@ -97,8 +110,10 @@ class Collection:
         max_allowed_marker_errors = min(3, len(images))
         logger.debug('Max allowed marker errors = {}.'.format(max_allowed_marker_errors))
         try:
+            wb = Waitbar(len(images), 'Page')
             for page_num, img in enumerate(images):
-                logger.info('Page {} of {}'.format(page_num + 1, len(images)))
+                wb.print(page_num)
+                logger.debug('Page {} of {}'.format(page_num + 1, len(images)))
                 cv_image = cv2.imread(img)
                 try:
                     left_marker, right_marker, left_id = find_markers(cv_image)
@@ -112,7 +127,7 @@ class Collection:
                     tesseract_options = r'--oem 3 --psm 6 outputbase digits'
                     ocr_strings = [pytesseract.image_to_string(f, config=tesseract_options) for f in ocr_fields]
                     page_id = page_id_from_ocr(left_id, ocr_strings)
-                    logger.info('Page id = %s', page_id)
+                    logger.debug('Page id = %s', page_id)
                     self._index[file_name][page_num] = page_id
 
                 if not continue_despite_marker_errors \
@@ -135,6 +150,7 @@ class Collection:
                         success = False
                         continue_despite_marker_errors = False
                         break
+            wb.done()
         except Exception as ex:
             logger.critical('An unhandled exception occurred during processing of the pdf {}.'.format(file_name))
             self._index.pop(file_name)
@@ -221,8 +237,9 @@ class Collection:
                 sorted_page_list = sorted(page_list, key=lambda paddr: paddr[2].page)
             else: # by == 'task':
                 sorted_page_list = sorted(page_list, key=lambda paddr: (paddr[2].sheet, paddr[2].page))
+            wb = Waitbar(len(sorted_page_list), 'Page')
             for i, page_addr in enumerate(sorted_page_list):
-                print_waitbar(i, len(sorted_page_list), 'Page')
+                wb.print(i)
                 file_name = page_addr[0]
                 file_page = page_addr[1]
                 page_id = page_addr[2]
@@ -231,8 +248,7 @@ class Collection:
                     open_infiles[in_file_name] = open(in_file_name, 'rb')
                 merger.append(open_infiles[in_file_name], pages=(file_page, file_page + 1))
                 by_category._index[file_dest].append(page_id)
-            print_waitbar(len(sorted_page_list), len(sorted_page_list), 'Page')
-            print()
+            wb.done()
             with open(os.path.join(dest, file_dest), 'wb') as out_file:
                 merger.write(out_file)
             merger.close()
