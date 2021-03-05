@@ -54,11 +54,13 @@ if __name__ == '__main__':
 
     logger.debug('Parsing arguments')
     parent_parser = argparse.ArgumentParser()
-    parent_parser.add_argument('collection', help='The collection to work on.')
 
     main_parser = argparse.ArgumentParser(description='This program helps distributing scans of written exams to the correctors.\n'
                                                       'To create an index of pages, it looks for special identifiers that have to printed on every page.\n'
                                                       'Pages can be grouped by task id (for the correctors) or by sheet id (for the students)\n')
+
+    main_parser.add_argument('collection', help='The collection to work on.')
+
     subparsers = main_parser.add_subparsers(dest='mode', title='Subcommands',
                                             description='Select one of the following operations:')
     add_parser = subparsers.add_parser('add', parents=[parent_parser], conflict_handler='resolve',
@@ -74,7 +76,7 @@ if __name__ == '__main__':
     remove_parser.add_argument('file', help='The file to be removed from the collection.')
 
     order_parser.add_argument('by', choices=['sheet', 'task'], help='The order criterion.')
-    order_parser.add_argument('to', help='The folder containing the rearranged collection.')
+    order_parser.add_argument('--to', help='The folder containing the rearranged collection.', default=None)
 
     validate_parser.add_argument('--extra-pages', '-xp', nargs='+', type=int, default=(),
                                  help='Exclude extra pages from the check for missing pages.')
@@ -90,7 +92,13 @@ if __name__ == '__main__':
             collection.remove(args.file)
         elif args.mode == 'order-by':
             collection = Collection(args.collection)
-            dest = find_free_path(args.to)
+
+            if args.to is None:
+                parent_folder, collection_name = os.path.split(os.path.normpath(os.path.realpath(args.collection)))
+                dest = os.path.join(parent_folder, '{}_by_{}'.format(collection_name, args.by))
+            else:
+                dest = args.to
+            dest = find_free_path(dest)
             new_collection = collection.reorder_by(args.by, dest)
         elif args.mode == 'validate':
             collection = Collection(args.collection)
