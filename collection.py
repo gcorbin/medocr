@@ -34,12 +34,6 @@ def change_log_to_string(change_log):
     return rep
 
 
-'''def print_waitbar(progress, total=100, message=''):
-    total = max(1, total)
-    print('\r                                            \r'
-          '{}: {}/{}, {:02.0f}%'.format(message, progress, total, progress*100/total), end='')'''
-
-
 class Waitbar:
     def __init__(self, total=100, message=''):
         self._total = max(1, total)
@@ -53,8 +47,25 @@ class Waitbar:
         self.print(self._total)
         print()
 
+
 class DuplicateError(Exception):
     pass
+
+
+def make_page_display_window():
+    cv2.namedWindow('pagedisplay', cv2.WINDOW_NORMAL)
+    cv2.moveWindow('pagedisplay', 0, 0)
+    cv2.resizeWindow('pagedisplay', 600, 800)
+
+
+def display_page(img, title):
+    cv2.imshow('pagedisplay', img)
+    cv2.setWindowTitle('pagedisplay', title)
+    cv2.waitKey(1)
+
+
+def destroy_page_display_window():
+    cv2.destroyWindow('pagedisplay')
 
 
 class Collection:
@@ -62,7 +73,7 @@ class Collection:
         if not Collection.is_collection(path):
             raise OSError('The path {} does not point to a valid collection: '
                           'Either the directory does not exist, or it does not contain an index file'.format(path))
-
+        logger.info('Working on collection {} .'.format(path))
         self._path = path
         self._index_file = Collection.index_file(self._path)
         index_s = json_utils.read_json(self._index_file)
@@ -134,12 +145,14 @@ class Collection:
                         and marker_errors >= max_allowed_marker_errors\
                         and page_num <= 10:
                     logger.warning('Encountered at least {} pages with either unidentifiable markers or markers with'
-                                   'the wrong id. The current exam id is {}.'.format(max_allowed_marker_errors, self._examid))
+                                   'the wrong id. The current exam id is {}.'
+                                   ''.format(max_allowed_marker_errors, self._examid))
 
                     ans = input('Are you sure that you are reading the right pdf?\n'
                                 'Enter "continue" to treat all further errors as image recognition errors\n'
                                 'Enter "stop" if you do not want to enter this pdf to the collection\n'
-                                'WARNING: Continuing with a wrong pdf will result in a corrupted index.\n'.format(self._examid))
+                                'WARNING: Continuing with a wrong pdf will result in a corrupted index.\n'
+                                ''.format(self._examid))
                     while ans not in ['continue', 'stop']:
                         ans = input('Enter "stop" or "continue".\n')
                     if ans == 'continue':
@@ -177,13 +190,15 @@ class Collection:
 
         # estimate the time for conversion
         start_time = time.time()
-        convert_from_path(file_in_collection, first_page=1, last_page=1, dpi=dpi, fmt='jpg', grayscale=True, output_folder=work_folder)
+        convert_from_path(file_in_collection, first_page=1, last_page=1, dpi=dpi,
+                          fmt='jpg', grayscale=True, output_folder=work_folder)
         time_elapsed = time.time() - start_time
         pdf_reader = PyPDF2.PdfFileReader(file_in_collection)
         num_pages = pdf_reader.getNumPages()
         logger.info('Estimated time for conversion is {:.0f} seconds.'.format(num_pages * time_elapsed))
 
-        images = convert_from_path(file_in_collection, dpi=dpi, fmt='jpg', grayscale=True, output_folder=work_folder, paths_only=True)
+        images = convert_from_path(file_in_collection, dpi=dpi, fmt='jpg',
+                                   grayscale=True, output_folder=work_folder, paths_only=True)
         logger.debug('Completed conversion.')
         return images
 
@@ -191,8 +206,8 @@ class Collection:
         if self._examid is None:
             self._examid = exam_id_input
         if self._examid != exam_id_input:
-            raise MarkerException(
-                'The marker id {} is different from the exam id {} of this collection'.format(exam_id_input, self._examid))
+            raise MarkerException('The marker id {} is different from the exam id {} of this collection'
+                                  ''.format(exam_id_input, self._examid))
 
     def remove(self, file):
         logger.info('Removing file %s from the collection.', file)
@@ -235,7 +250,7 @@ class Collection:
             merger = PyPDF2.PdfFileMerger()
             if by == 'sheet':
                 sorted_page_list = sorted(page_list, key=lambda paddr: paddr[2].page)
-            else: # by == 'task':
+            else:  # by == 'task':
                 sorted_page_list = sorted(page_list, key=lambda paddr: (paddr[2].sheet, paddr[2].page))
             wb = Waitbar(len(sorted_page_list), 'Page')
             for i, page_addr in enumerate(sorted_page_list):
@@ -257,7 +272,7 @@ class Collection:
 
     def validate(self, extra_pages):
         logger.info('Validating.')
-        self.make_page_display_window()
+        make_page_display_window()
         missing = []
         rem_i = []
         rem_i_fs = []
@@ -278,7 +293,7 @@ class Collection:
             logger.warning(di)
             raise di
         finally:
-            self.destroy_page_display_window()
+            destroy_page_display_window()
             # The order of these outputs is reverse to the order of the validation step
             # The most serious warnings should appear at the bottom.
             if len(change_log) > 0:
@@ -287,10 +302,10 @@ class Collection:
                 logger.warning('The following pages are missing:\n%s', missing_pages_string(missing))
             if len(rem_i) > 0:
                 logger.warning('The following files were not found in the file system'
-                               ' and have been removed from the index:\n%s','\n'.join(rem_i))
+                               ' and have been removed from the index:\n%s', '\n'.join(rem_i))
             if len(rem_i_fs) > 0:
                 logger.warning('The following files were corrupted'
-                               ' and have been removed from the index and file system:\n%s','\n'.join(rem_i_fs))
+                               ' and have been removed from the index and file system:\n%s', '\n'.join(rem_i_fs))
             self.write()
 
     def remove_corrupt_entries(self):
@@ -305,11 +320,13 @@ class Collection:
                     num_pages = pdf_reader.getNumPages()
                     if num_pages != len(id_list):
                         logger.warning('Index entry {}: Either the index entry or the corresponding file are corrupt: '
-                                       'Pages in file = {}. Pages in index = {}'.format(file_name, num_pages, len(id_list)))
+                                       'Pages in file = {}. Pages in index = {}'
+                                       ''.format(file_name, num_pages, len(id_list)))
                         remove_from_index_and_file_system.append(file_name)
             else:
                 remove_from_index.append(file_name)
-                logger.warning('Index entry {}: The file belonging to the index entry is missing in the file system.'.format(file_name))
+                logger.warning('Index entry {}: The file belonging to the index entry is missing in the file system.'
+                               ''.format(file_name))
 
         # cannot remove keys from the dict during iteration
         logger.info('Removing the index entries for the missing files.')
@@ -382,8 +399,8 @@ class Collection:
             # we are in trouble, there is a true duplicate
             if len(unchanged) > 1:
                 raise DuplicateError('File {}, page {} and file {}, page {} have the same page id.\n'
-                                     'Try to do the validation again if you think the error comes from a previous typo.\n'
-                                     'Else, try to remove one of the files from the collection.'
+                                     'Try to repeat the validation if you think the error comes from a previous typo.\n'
+                                     'Or else, try to remove one of the files from the collection.'
                                      ''.format(unchanged[0][0], unchanged[0][1]+1, unchanged[1][0], unchanged[1][1]+1))
 
     def ask_for_label(self, file_name, page_num):
@@ -392,7 +409,7 @@ class Collection:
         window_title = 'File {}, page {}'.format(file_name, page_num+1)
         print(window_title)
         # logger.debug('Relabel %s ', window_title)
-        self.display_page(img, window_title)
+        display_page(img, window_title)
 
         pid = PageId()
         while not pid.is_valid():
@@ -402,7 +419,7 @@ class Collection:
         return pid
 
     def update_index_and_change_log(self, change_log, file_name, page_num, new_label):
-        if not file_name in change_log:
+        if file_name not in change_log:
             change_log[file_name] = dict()
         if page_num in change_log[file_name]:
             old_label = change_log[file_name][page_num][0]
@@ -412,19 +429,6 @@ class Collection:
         self._index[file_name][page_num] = new_label
         change_log[file_name][page_num] = (old_label, new_label)
         logger.debug('Changed label for file {}, page {} to {}'.format(file_name, page_num, new_label))
-
-    def make_page_display_window(self):
-        cv2.namedWindow('pagedisplay', cv2.WINDOW_NORMAL)
-        cv2.moveWindow('pagedisplay', 0, 0)
-        cv2.resizeWindow('pagedisplay', 600, 800)
-
-    def display_page(self, img, title):
-        cv2.imshow('pagedisplay', img)
-        cv2.setWindowTitle('pagedisplay', title)
-        cv2.waitKey(1)
-
-    def destroy_page_display_window(self):
-        cv2.destroyWindow('pagedisplay')
 
     def find_missing_pages(self, extra_pages=()):
         logger.info('Find missing pages.')

@@ -3,7 +3,6 @@ import argparse
 import logging
 import sys
 import os_utils
-import time
 from defaultlogger import set_default_logging_behavior
 
 from collection import Collection
@@ -27,7 +26,9 @@ def find_free_path(raw_path):
 
 
 def find_most_recent_log_number(path):
-    logfiles = [name_ext for name_ext in os.listdir(path) if name_ext.startswith('medocr') and name_ext.endswith('.log')]
+    logfiles = [name_ext for name_ext in os.listdir(path)
+                if name_ext.startswith('medocr')
+                and name_ext.endswith('.log')]
     most_recent_number = 0
     most_recent_time = 0  # start of the epoch
     for name_ext in logfiles:
@@ -50,7 +51,9 @@ def find_most_recent_log_number(path):
 if __name__ == '__main__':
     prev_log_number = find_most_recent_log_number('.')
     log_number = (prev_log_number % 5) + 1
-    set_default_logging_behavior(logfile='medocr-{:d}'.format(log_number))
+    log_name = 'medocr-{:d}'.format(log_number)
+    set_default_logging_behavior(logfile=log_name)
+    logger.info('Writing to log %s', log_name)
 
     logger.debug('Parsing arguments')
     parent_parser = argparse.ArgumentParser()
