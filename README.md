@@ -1,6 +1,8 @@
 # meDocr
 
-_Match exam documents by optical character recognition._
+\ ˌmē-dē-ˈō-kər \\
+
+_Match exam documents by optical character recognition._ 
 
 **Das Problem:** Für die Korrektur der Klausuren werden diese eingescannt und dann als .pdf Dokumente an die Helfer:innen verteilt. Ein:e Helfer:in korrigiert dabei meistens eine Aufgabe auf allen Klausurbögen. Die Scans müssen also für die Korrektur nach Aufgaben gruppiert werden und später für die Einsicht wieder zu den Klausurbögen zusammengefügt werden. 
 
