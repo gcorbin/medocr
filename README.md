@@ -83,7 +83,7 @@ Dieses Format ist auch von der Druckerei am RHRK so gewünscht.
 Man kann die Klausuren immer Paketweise einscannen lassen. 
 Die eingescannten Dokumente kann man dann mit dem Befehl
 
-> python3 medocr.py add \<collection\> \<file\>
+> python3 medocr.py \<collection\> add \<file\>
 
 erkennen und indizieren. 
 \<collection\> ist der Pfad der Ausgabe und \<file\> ist das .pdf Dokument was indiziert werden soll. 
@@ -98,7 +98,7 @@ Man kann mehrere .pdfs dem gleichen Ordner hinzufügen.
 Bei der Indizierung gibt es immer Seiten, die nicht erkannt werden. 
 Deshalb sollte man **immer** validieren, nachdem man alle Seiten zur Sammlung hinzugefügt hat! 
 
-> python3 medocr.py validate \<collection\> 
+> python3 medocr.py \<collection\> validate
 
 Bei der Validierung werden folgende Dinge überprüft:
 - Stimmt die Anzahl der Seiten im Index mit der Anzahl der Seiten in den .pdfs überein?
@@ -110,7 +110,7 @@ Bei der Validierung werden folgende Dinge überprüft:
 
 Mit dem Befehl
 
-> python3 medocr.py order-by \<collection\> task \<collection-task\>
+> python3 medocr.py \<collection\> order-by task --to \<collection-task\>
 
 wird die neue Sammlung \<collection-task\> angelegt, in der für jede Aufgabe ein eigenes .pdf existiert. 
 Diese Dateien können dann an die Helfer:innen weitergegeben werden. 
@@ -123,7 +123,7 @@ Vorher bitte immer **validieren!!!**
 - Die Datei _index_ aus \<collection-task\> in diesen Ordner kopieren
 - Den Befehl 
 
-> python3 medocr.py order-by \<collection-corr\> sheet \<collection-sheet\>
+> python3 medocr.py\<collection-corr\> order-by sheet --to \<collection-sheet\>
 
 ausführen 
 
@@ -157,7 +157,7 @@ Bei den Extraseiten sind alle Felder der Markierung leer. Für diese Seiten gibt
 In jedem Fall sollte man für die Seitenzahl eine Zahl eingeben, die nicht auf dem normalen Klausurbogen vorkommt. 
 Man sollte bei der Validierung mit 
 
-> python3 medocr.py validate \<collection\> --extra-pages \<zahl1\> \<zahl2\> ... \<zahlN\>
+> python3 medocr.py \<collection\> validate --extra-pages \<zahl1\> \<zahl2\> ... \<zahlN\>
 
 eine Liste der Seitennummern angeben, die für Extraseiten  vergeben wurden. 
 Diese Seitennummern werden ausgelassen, wenn die fehlenden Seiten berechnet werden. 
