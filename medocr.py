@@ -94,7 +94,7 @@ if __name__ == '__main__':
             collection = Collection(args.collection)
 
             if args.to is None:
-                parent_folder, collection_name = os.path.split(os.path.normpath(os.path.realpath(args.collection)))
+                parent_folder, collection_name = os.path.split(os.path.realpath(args.collection))
                 dest = os.path.join(parent_folder, '{}_by_{}'.format(collection_name, args.by))
             else:
                 dest = args.to
