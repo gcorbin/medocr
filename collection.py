@@ -68,6 +68,25 @@ def destroy_page_display_window():
     cv2.destroyWindow('pagedisplay')
 
 
+def make_chunks(some_list, chunk_size, bind_feature=lambda i, p: i):
+    if chunk_size is None:
+        return [some_list]
+    if chunk_size <= 0:
+        return [some_list]
+    chunks = []
+    cur = []
+    last_feature = None
+    for i, p in enumerate(some_list):
+        if len(cur) >= chunk_size and bind_feature(i,p) != last_feature:
+            chunks.append(cur)
+            cur = []
+        cur.append(p)
+        last_feature = bind_feature(i,p)
+    if len(cur) > 0:
+        chunks.append(cur)
+    return chunks
+
+
 class Collection:
     def __init__(self, path):
         if not Collection.is_collection(path):
@@ -224,7 +243,7 @@ class Collection:
         else:
             logger.warning('The collection does not contain the file {}.'.format(file))
 
-    def reorder_by(self, by, dest):
+    def reorder_by(self, by, dest, chunk_size=0):
         logger.info('Creating the new collection %s, ordered by %s.', dest, by)
         if by not in ['sheet', 'task']:
             raise ValueError('The order criterion must be one of "sheet", "task".')
@@ -241,33 +260,45 @@ class Collection:
                 pages_by_category[page_group].append((file_name, file_page, page_id))
 
         by_category = Collection.make_new_collection(dest)
-        for page_group, page_list in pages_by_category.items():
-            file_dest = '{}{}.pdf'.format(by, page_group)
-            by_category._index[file_dest] = []
-            logger.info('Creating file %s', file_dest)
 
-            open_infiles = dict()
-            merger = PyPDF2.PdfFileMerger()
+        for page_group, page_list in pages_by_category.items():
             if by == 'sheet':
                 sorted_page_list = sorted(page_list, key=lambda paddr: paddr[2].page)
             else:  # by == 'task':
                 sorted_page_list = sorted(page_list, key=lambda paddr: (paddr[2].sheet, paddr[2].page))
-            wb = Waitbar(len(sorted_page_list), 'Page')
-            for i, page_addr in enumerate(sorted_page_list):
-                wb.print(i)
-                file_name = page_addr[0]
-                file_page = page_addr[1]
-                page_id = page_addr[2]
-                in_file_name = os.path.join(self._path, file_name)
-                if in_file_name not in open_infiles:
-                    open_infiles[in_file_name] = open(in_file_name, 'rb')
-                merger.append(open_infiles[in_file_name], pages=(file_page, file_page + 1))
-                by_category._index[file_dest].append(page_id)
-            wb.done()
-            with open(os.path.join(dest, file_dest), 'wb') as out_file:
-                merger.write(out_file)
-            merger.close()
-            by_category.write()
+
+            # split list into chunks, do not split in between sheets
+            # if order-by sheet, there should not be chunks
+            chunks = make_chunks(sorted_page_list, chunk_size, lambda i,p: p[2].sheet)
+
+            for ci, chunk in enumerate(chunks):
+                if len(chunks) > 1:
+                    file_dest = '{}{}_chunk{}.pdf'.format(by, page_group, ci)
+                else:
+                    file_dest = '{}{}.pdf'.format(by, page_group)
+
+                by_category._index[file_dest] = []
+                logger.info('Creating file %s', file_dest)
+
+                open_infiles = dict()
+                merger = PyPDF2.PdfFileMerger()
+
+                wb = Waitbar(len(chunk), 'Page')
+                for i, page_addr in enumerate(chunk):
+                    wb.print(i)
+                    file_name = page_addr[0]
+                    file_page = page_addr[1]
+                    page_id = page_addr[2]
+                    in_file_name = os.path.join(self._path, file_name)
+                    if in_file_name not in open_infiles:
+                        open_infiles[in_file_name] = open(in_file_name, 'rb')
+                    merger.append(open_infiles[in_file_name], pages=(file_page, file_page + 1))
+                    by_category._index[file_dest].append(page_id)
+                wb.done()
+                with open(os.path.join(dest, file_dest), 'wb') as out_file:
+                    merger.write(out_file)
+                merger.close()
+                by_category.write()
         return Collection(dest)
 
     def validate(self, extra_pages):

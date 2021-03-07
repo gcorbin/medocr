@@ -80,6 +80,8 @@ if __name__ == '__main__':
 
     order_parser.add_argument('by', choices=['sheet', 'task'], help='The order criterion.')
     order_parser.add_argument('--to', help='The folder containing the rearranged collection.', default=None)
+    order_parser.add_argument('--chunk-size', '-cs', type=int, default=0,
+                              help='Split the output files into chunks of this size')
 
     validate_parser.add_argument('--extra-pages', '-xp', nargs='+', type=int, default=(),
                                  help='Exclude extra pages from the check for missing pages.')
@@ -102,7 +104,7 @@ if __name__ == '__main__':
             else:
                 dest = args.to
             dest = find_free_path(dest)
-            new_collection = collection.reorder_by(args.by, dest)
+            new_collection = collection.reorder_by(args.by, dest, chunk_size=args.chunk_size)
         elif args.mode == 'validate':
             collection = Collection(args.collection)
             collection.validate(args.extra_pages)
